@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <!--
-    LUMEN.Core — pure game logic. No engine, no database, no filesystem, no platform APIs.
+    LUMEN.Core - pure game logic. No engine, no database, no filesystem, no platform APIs.
     Everything here must be unit-testable in isolation (spec §68, §102).
     Deliberately targets plain net8.0 so a Windows-only dependency cannot leak in.
   -->

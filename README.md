@@ -7,8 +7,10 @@ and a built-in chart editor. Play · compete · create — in one `LUMEN.exe`.
 
 ## Status
 
-**Phase 0 — bootstrap: complete.** Solution, five projects, dependency graph, `GameIdentity`,
-`LumenPaths`, a titled window, and the first unit tests are in place.
+**Phase 1 — Windows EXE foundation: complete.** Solution + five projects, `GameIdentity`,
+`LumenPaths`, a titled window with its own clock and a refresh-rate frame limiter,
+day-rolling logs, a crash guard with an in-app error screen, atomic file writes, and a
+SQLite database with a transactional migration runner (schema v1). 29 unit tests green.
 
 See [`docs/PLAN.md`](docs/PLAN.md) for the full 11-phase plan and
 [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the design.
@@ -26,6 +28,7 @@ See [`docs/PLAN.md`](docs/PLAN.md) for the full 11-phase plan and
 .\build.ps1 test      # run the unit tests
 .\build.ps1 run       # launch the game
 .\build.ps1 smoke     # launch, verify the window comes up, exit
+.\build.ps1 crashtest # launch, throw in the loop, verify the error screen catches it
 .\build.ps1 publish   # self-contained single-file LUMEN.exe -> .\publish\
 ```
 

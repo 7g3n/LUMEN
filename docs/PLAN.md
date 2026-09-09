@@ -40,12 +40,17 @@ Each phase also passes the universal gate: typecheck clean · tests green ·
 **Exit:** `build.ps1 build|test|smoke` all succeed; window opens titled from `GameIdentity`;
 data tree created; 9 unit tests green. *(met)*
 
-### Phase 1 — Windows EXE foundation (§1)
-Window/display config, high-res clock, refresh-rate frame limiter, FPS overlay.
-Logging to `logs/`, global exception handler → error screen (§96).
-SQLite bootstrap + migration runner to schema v1; `app_meta`.
-**Exit:** offline launch; migrated `lumen.db`; forced exception shows error screen;
-120+ FPS uncapped; `LumenPaths` + migration-runner tests.
+### Phase 1 — Windows EXE foundation (§1) ✅
+Window/display config (`settings/display.json`), `GameClock`, refresh-rate `FrameLimiter`
+(SDL2 refresh query + 1 ms timer), perf overlay.
+`FileLog` day-rolling logs in `logs/`; `CrashGuard` (AppDomain hook + in-loop try/catch
+→ error screen + `crash-*.txt` + Win32 dialog, §96).
+`AtomicFile` temp→flush→rename (§74). `Database` (WAL, FK, busy_timeout) +
+`MigrationRunner` (`PRAGMA user_version`, per-step transaction) → schema v1 `app_meta`;
+`AppMetaStore` (install id, launch tracking).
+**Exit met:** offline launch; migrated `lumen.db` v1; `--crashtest` → error screen, no
+hard crash, logged + report written; frame limiter holds monitor refresh (240 Hz → 239 fps);
+29 unit tests green (identity, paths, atomic file, migrations, database, display config, clock).
 
 ### Phase 2 — Player setup & profile (§4–8, §80–83)
 First-run setup + name validation (1–16, Unicode, trim, no empty/control chars).

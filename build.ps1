@@ -14,7 +14,7 @@
   .\build.ps1 run
 #>
 param(
-    [ValidateSet('restore', 'build', 'test', 'run', 'smoke', 'publish', 'clean')]
+    [ValidateSet('restore', 'build', 'test', 'run', 'smoke', 'crashtest', 'publish', 'clean')]
     [string]$Task = 'build',
 
     [ValidateSet('Debug', 'Release')]
@@ -42,6 +42,7 @@ switch ($Task) {
     'test'    { dotnet test $sln -c $Configuration }
     'run'     { dotnet run --project $game -c $Configuration }
     'smoke'   { dotnet run --project $game -c $Configuration -- --smoke }
+    'crashtest' { dotnet run --project $game -c $Configuration -- --crashtest }
     'clean'   {
         dotnet clean $sln -c $Configuration
         Get-ChildItem $repo -Include bin, obj -Recurse -Directory | Remove-Item -Recurse -Force

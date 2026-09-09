@@ -1,8 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <!--
-    LUMEN.Audio — low-latency audio playback and the audio clock that drives the
-    conductor (spec §68). Windows-targeted because the planned backend is NAudio/WASAPI.
+    LUMEN.Audio - low-latency audio playback and the audio clock that drives the
+    conductor (spec 68). Windows-targeted because the planned backend is NAudio/WASAPI.
     Backend lands in Phase 3.
   -->
   <PropertyGroup>

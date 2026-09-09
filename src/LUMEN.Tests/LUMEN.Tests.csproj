@@ -19,6 +19,7 @@
     <ProjectReference Include="..\LUMEN.Core\LUMEN.Core.csproj" />
     <ProjectReference Include="..\LUMEN.Data\LUMEN.Data.csproj" />
     <ProjectReference Include="..\LUMEN.Audio\LUMEN.Audio.csproj" />
+    <ProjectReference Include="..\LUMEN.Game\LUMEN.Game.csproj" />
   </ItemGroup>
 
 </Project>

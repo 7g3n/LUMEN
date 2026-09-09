@@ -1,6 +1,10 @@
 using System;
 using Lumen.Core;
+using Lumen.Core.Diagnostics;
 using Lumen.Data;
+using Lumen.Data.Logging;
+using Lumen.Game.Config;
+using Lumen.Game.Engine;
 
 namespace Lumen.Game;
 
@@ -9,37 +13,58 @@ internal static class Program
     [STAThread]
     private static int Main(string[] args)
     {
-        var options = LaunchOptions.Parse(args);
-
-        // Resolve (but do not yet fully use) the data layout so a broken environment
-        // surfaces immediately rather than deep inside gameplay.
+        LaunchOptions options = LaunchOptions.Parse(args);
         LumenPaths paths = LumenPaths.Resolve();
+        paths.EnsureCreated();
 
-        Console.WriteLine($"{GameIdentity.Name} {GameIdentity.Version}");
-        Console.WriteLine($"data root: {paths.Root}");
+        using var log = new FileLog(paths.Logs, minLevel: LogLevel.Debug);
+        Log.Current = log;
+        CrashGuard.Install(paths);
+        FrameLimiter.RequestHighResolutionTimer();
 
+        Log.Info($"=== {GameIdentity.Name} {GameIdentity.Version} starting ===");
+        Log.Info($"data root: {paths.Root}");
+        Console.WriteLine($"{GameIdentity.Name} {GameIdentity.Version}  |  {paths.Root}  |  log: {log.CurrentFilePath}");
+
+        Database? db = null;
         try
         {
-            using var game = new LumenGame(paths, options);
+            db = new Database(paths.DatabaseFile);
+            db.Open();
+
+            string? previousVersion = new AppMetaStore(db).RegisterLaunch();
+            if (previousVersion is not null && previousVersion != GameIdentity.Version)
+            {
+                Log.Info($"data folder last opened by v{previousVersion}");
+            }
+
+            DisplayConfig display = DisplayConfig.Load(paths.Settings);
+
+            using var game = new LumenGame(paths, options, display, db);
             game.Run();
+
+            Log.Info("clean exit");
             return 0;
         }
         catch (Exception ex)
         {
-            // Phase 1 replaces this with an in-app error screen + log file (spec §96).
-            Console.Error.WriteLine($"FATAL: {ex}");
+            // Startup / unrecoverable failure: log, crash report, dialog — never a silent die.
+            CrashGuard.Handle(ex, terminating: true, showDialog: !options.Smoke && !options.CrashTest);
             return 1;
+        }
+        finally
+        {
+            db?.Dispose();
         }
     }
 }
 
-/// <summary>Command-line switches. Kept tiny; real config lives in settings later.</summary>
-internal sealed record LaunchOptions(bool Smoke)
+/// <summary>Command-line switches. Real configuration lives in settings files.</summary>
+internal sealed record LaunchOptions(bool Smoke, bool CrashTest)
 {
     public static LaunchOptions Parse(string[] args)
     {
-        bool smoke = Array.Exists(args, a =>
-            a.Equals("--smoke", StringComparison.OrdinalIgnoreCase));
-        return new LaunchOptions(smoke);
+        bool Has(string name) => Array.Exists(args, a => a.Equals(name, StringComparison.OrdinalIgnoreCase));
+        return new LaunchOptions(Smoke: Has("--smoke"), CrashTest: Has("--crashtest"));
     }
 }
