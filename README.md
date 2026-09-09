@@ -7,13 +7,15 @@ and a built-in chart editor. Play · compete · create — in one `LUMEN.exe`.
 
 ## Status
 
-**Phase 2 — Player setup & profile: complete.** On top of the Phase 1 foundation:
-grapheme-aware player-name validation, `Profile` / settings repositories over SQLite
-schema v2, an active-profile `Session`, a small screen + UI toolkit (`ScreenManager`,
-`TextField`, `MenuList`, theme), and the Setup / Main Menu / Profile / Settings screens.
-Renaming a profile keeps its UUID and every future score link. 75 unit tests green.
+**Phase 3 — Game engine: complete.** Tap + Hold gameplay end to end: a pure,
+deterministic `GameplaySession` (judgement windows, accuracy, combo, score — all
+config-driven), a NAudio/WASAPI audio engine with a sample-accurate position, a
+`Conductor` that locks the song clock to the audio, a falling-note playfield, and a
+result screen. A synthesised original practice track ("First Light") ships generated
+into the data folder. 116 unit tests green.
 
-Run `LUMEN.exe --capture <dir>` to render each screen to a PNG.
+`LUMEN.exe --autoplay` plays the practice chart with perfect input and prints the result.
+`LUMEN.exe --capture <dir>` renders each screen to a PNG.
 
 See [`docs/PLAN.md`](docs/PLAN.md) for the full 11-phase plan and
 [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the design.

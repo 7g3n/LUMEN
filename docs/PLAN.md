@@ -66,13 +66,22 @@ timing/display rows persisted live), Placeholder. `--capture` renders each scree
 validation matrix; settings survive a DB reopen (test); 75 unit tests green; all 4 screens
 render cleanly (visually verified).
 
-### Phase 3 — Game engine (§15–25)
-NAudio engine; WAV/OGG/MP3 decode; sample-accurate position; `Conductor` + BPM map.
-`InputProvider` + Keyboard + Mouse; rebindable lane keys. Tap + Hold notes.
-Judgement windows / accuracy / combo / score — all `BalanceConfig`-driven.
-Gameplay screen + playfield; pause/fail/complete; minimal result screen.
-**Exit:** bundled test chart plays end-to-end offline; config-driven & tested; A/V sync;
-deterministic judgement for fixed input timings.
+### Phase 3 — Game engine (§15–25) ✅
+Core (pure): `BalanceConfig` (+ `balance.json`), `Judgement`, `Chart`/`Note`/`BpmPoint`,
+`TempoMap` (time<->beat across tempo changes), `ChartJson` (v1 `.lumenchart`),
+`JudgementRule`, `ScoreState` (all-perfect FC = exactly MaxScore), `GameplaySession`
+(deterministic: chart + ordered `LaneEvent`s -> judgements), `PlayResult` + grades.
+Audio: NAudio/WASAPI `AudioEngine` -> in-memory `AudioClip` (WAV/MP3/OGG decode +
+resample), `WasapiAudioTrack` (sample-accurate position - output latency),
+`VirtualAudioTrack` (silent fallback, no crash).
+Game: `Conductor` (audio position + stopwatch extrapolation, monotonic), `KeyBindings`
+(rebindable A/S/D/F), `LaneInputSource` / `IGameplayInput`, `GameplayScreen` (playfield,
+falling notes, judgement popups, combo/score HUD, pause, countdown), `ResultScreen` (§36),
+`ErrorNoticeScreen` (§96), `TestContent` (synthesised original practice track + chart).
+`--autoplay` runs the whole song with perfect input.
+**Exit met:** `--autoplay` -> 100.00% / 1,000,000 / x96 / FC / AP end-to-end offline with
+audio; determinism test passes across 60/240/143 fps slicing; judgement/accuracy/combo/
+score fully `BalanceConfig`-driven; 116 unit tests green; gameplay renders (screenshot).
 
 ### Phase 4 — Rating / PP / performance / statistics (§28–34, §37–40)
 `RatingEngine` (weighted best-N, config decay, pure). `PPAlgorithm` (8 methods, pure, each tested).

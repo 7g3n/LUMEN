@@ -32,7 +32,7 @@ public sealed class MainMenuScreen : Screen
         switch (Actions[activated])
         {
             case "PLAY":
-                Manager.Push(new PlaceholderScreen("Play", "Gameplay arrives in Phase 3 — tap and hold notes, judgement, combo, score."));
+                StartPractice();
                 break;
             case "SONG SELECT":
                 Manager.Push(new PlaceholderScreen("Song Select", "The song library and local rankings arrive in Phase 5."));
@@ -52,6 +52,20 @@ public sealed class MainMenuScreen : Screen
             case "EXIT":
                 Context.RequestExit();
                 break;
+        }
+    }
+
+    private void StartPractice()
+    {
+        try
+        {
+            var installed = Content.TestContent.EnsureInstalled(Context.Paths);
+            Manager.Push(new GameplayScreen(installed.ChartPath, installed.AudioPath));
+        }
+        catch (Exception ex)
+        {
+            Core.Diagnostics.Log.Error("could not prepare practice track", ex);
+            Manager.Push(new ErrorNoticeScreen("Couldn't prepare the practice track", ex.Message));
         }
     }
 

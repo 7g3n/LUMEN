@@ -1,3 +1,4 @@
+using Lumen.Core.Balance;
 using Lumen.Core.Diagnostics;
 using Lumen.Core.Profiles;
 using Lumen.Core.Settings;
@@ -23,6 +24,8 @@ public sealed class GameContext
     public required AppMetaStore AppMeta { get; init; }
 
     public required DisplayConfig Display { get; init; }
+
+    public required BalanceConfig Balance { get; init; }
 
     public required Session Session { get; init; }
 

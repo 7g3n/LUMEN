@@ -97,6 +97,7 @@ internal sealed class LumenGame : Microsoft.Xna.Framework.Game
             Settings = settings,
             AppMeta = appMeta,
             Display = _display,
+            Balance = Core.Balance.BalanceConfigFile.LoadOrCreate(_paths.Settings),
             Session = session,
             RequestExit = Exit,
         };
@@ -121,9 +122,37 @@ internal sealed class LumenGame : Microsoft.Xna.Framework.Game
             return;
         }
 
+        if (_options.AutoPlay)
+        {
+            StartAutoPlay();
+            return;
+        }
+
         _screens.SetRoot(_context.Session.HasProfile
             ? new MainMenuScreen()
             : new SetupScreen());
+    }
+
+    /// <summary>Plays the practice chart with perfect input end to end, then exits (verification).</summary>
+    private void StartAutoPlay()
+    {
+        if (!_context.Session.HasProfile)
+        {
+            _context.Session.SetActive(_context.Profiles.Create("Autoplay"));
+        }
+
+        Lumen.Game.Content.TestContent.Installed test = Lumen.Game.Content.TestContent.EnsureInstalled(_paths);
+        _screens.SetRoot(new Screens.GameplayScreen(
+            test.ChartPath, test.AudioPath, autoPlay: true,
+            onComplete: result =>
+            {
+                string line = $"autoplay done: {result.Accuracy:0.00}% {result.Score:N0} " +
+                              $"x{result.MaxCombo} P{result.Perfect}/G{result.Great}/g{result.Good}/" +
+                              $"B{result.Bad}/M{result.Miss} FC={result.FullCombo} AP={result.AllPerfect}";
+                Log.Info(line);
+                Console.WriteLine(line);
+                Exit();
+            }));
     }
 
     /// <summary>Renders each key screen to a PNG for visual verification, then exits.</summary>
@@ -137,12 +166,15 @@ internal sealed class LumenGame : Microsoft.Xna.Framework.Game
             _context.Session.SetActive(demo);
         }
 
+        Lumen.Game.Content.TestContent.Installed test = Lumen.Game.Content.TestContent.EnsureInstalled(_paths);
+
         (string name, Screen screen)[] shots =
         {
             ("1-setup", new SetupScreen()),
             ("2-menu", new MainMenuScreen()),
             ("3-profile", new ProfileScreen()),
             ("4-settings", new SettingsScreen()),
+            ("5-gameplay", new Screens.GameplayScreen(test.ChartPath, test.AudioPath)),
         };
 
         using var target = new RenderTarget2D(GraphicsDevice, _display.Width, _display.Height);
@@ -150,13 +182,30 @@ internal sealed class LumenGame : Microsoft.Xna.Framework.Game
         foreach ((string name, Screen screen) in shots)
         {
             _screens.SetRoot(screen);
+
+            // Let time-based screens settle so the shot shows a real working state.
+            if (screen is Screens.GameplayScreen)
+            {
+                var warmup = System.Diagnostics.Stopwatch.StartNew();
+                var fake = _input.BeginFrame(0);
+                while (warmup.Elapsed.TotalSeconds < 3.2)
+                {
+                    _screens.Update(fake);
+                    System.Threading.Thread.Sleep(4);
+                }
+            }
+
             GraphicsDevice.SetRenderTarget(target);
             _screens.Draw(_ui);
             GraphicsDevice.SetRenderTarget(null);
 
             string path = Path.Combine(dir, $"lumen-{name}.png");
-            using var fs = File.Create(path);
-            target.SaveAsPng(fs, target.Width, target.Height);
+            using (var fs = File.Create(path))
+            {
+                target.SaveAsPng(fs, target.Width, target.Height);
+            }
+
+            screen.OnExit();
             Log.Info($"captured {path}");
             Console.WriteLine($"captured {path}");
         }
@@ -172,6 +221,13 @@ internal sealed class LumenGame : Microsoft.Xna.Framework.Game
             if (_options.CrashTest && _clock.TotalSeconds >= 1.5)
             {
                 throw new InvalidOperationException("Deliberate crash test (--crashtest).");
+            }
+
+            if (_options.AutoPlay && _clock.TotalSeconds >= 120)
+            {
+                Console.WriteLine("autoplay timed out");
+                Log.Error("autoplay timed out");
+                Environment.Exit(2);
             }
 
             if (_fatal is null)

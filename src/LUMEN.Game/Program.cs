@@ -60,7 +60,7 @@ internal static class Program
 }
 
 /// <summary>Command-line switches. Real configuration lives in settings files.</summary>
-internal sealed record LaunchOptions(bool Smoke, bool CrashTest, string? CaptureDir)
+internal sealed record LaunchOptions(bool Smoke, bool CrashTest, string? CaptureDir, bool AutoPlay)
 {
     public static LaunchOptions Parse(string[] args)
     {
@@ -73,6 +73,10 @@ internal sealed record LaunchOptions(bool Smoke, bool CrashTest, string? Capture
             captureDir = args[i + 1];
         }
 
-        return new LaunchOptions(Smoke: Has("--smoke"), CrashTest: Has("--crashtest"), CaptureDir: captureDir);
+        return new LaunchOptions(
+            Smoke: Has("--smoke"),
+            CrashTest: Has("--crashtest"),
+            CaptureDir: captureDir,
+            AutoPlay: Has("--autoplay"));
     }
 }
