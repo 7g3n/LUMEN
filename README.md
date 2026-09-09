@@ -7,12 +7,17 @@ and a built-in chart editor. Play · compete · create — in one `LUMEN.exe`.
 
 ## Status
 
-**Phase 3 — Game engine: complete.** Tap + Hold gameplay end to end: a pure,
-deterministic `GameplaySession` (judgement windows, accuracy, combo, score — all
-config-driven), a NAudio/WASAPI audio engine with a sample-accurate position, a
-`Conductor` that locks the song clock to the audio, a falling-note playfield, and a
-result screen. A synthesised original practice track ("First Light") ships generated
-into the data folder. 116 unit tests green.
+**Phase 4 — Rating / PP / performance / statistics: complete.** A play now produces
+Performance Points (8 independent, config-driven, unit-tested steps), a per-play
+performance rating, and an updated overall Rating (decay-weighted mean of best
+performances). Score saving is one SQLite transaction (rollback leaves nothing).
+The result screen counts up the PP and Rating change and flags new records; the
+profile screen shows real stats, best performances, and a five-axis skill profile.
+174 unit tests green.
+
+Prior phases: Tap + Hold gameplay with a deterministic engine and a NAudio/WASAPI
+audio clock (Phase 3); player setup, profiles and the screen/UI toolkit (Phase 2);
+window, clock, logging, crash guard, SQLite migrations (Phase 1).
 
 `LUMEN.exe --autoplay` plays the practice chart with perfect input and prints the result.
 `LUMEN.exe --capture <dir>` renders each screen to a PNG.

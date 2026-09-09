@@ -89,15 +89,18 @@ internal sealed class LumenGame : Microsoft.Xna.Framework.Game
         var session = new Session(_db, profiles, appMeta);
         session.Restore();
 
+        Core.Balance.BalanceConfig balance = Core.Balance.BalanceConfigFile.LoadOrCreate(_paths.Settings);
+
         _context = new GameContext
         {
             Paths = _paths,
             Database = _db,
             Profiles = profiles,
             Settings = settings,
+            Scores = new ScoreRepository(_db, balance),
             AppMeta = appMeta,
             Display = _display,
-            Balance = Core.Balance.BalanceConfigFile.LoadOrCreate(_paths.Settings),
+            Balance = balance,
             Session = session,
             RequestExit = Exit,
         };

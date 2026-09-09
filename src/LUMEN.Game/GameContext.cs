@@ -1,6 +1,7 @@
 using Lumen.Core.Balance;
 using Lumen.Core.Diagnostics;
 using Lumen.Core.Profiles;
+using Lumen.Core.Scores;
 using Lumen.Core.Settings;
 using Lumen.Data;
 using Lumen.Game.Config;
@@ -20,6 +21,8 @@ public sealed class GameContext
     public required IProfileRepository Profiles { get; init; }
 
     public required ISettingsRepository Settings { get; init; }
+
+    public required IScoreRepository Scores { get; init; }
 
     public required AppMetaStore AppMeta { get; init; }
 

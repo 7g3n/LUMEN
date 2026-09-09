@@ -154,14 +154,16 @@ public sealed class GameplayScreen : Screen
             Log.Info($"result: {result.Accuracy:0.00}% {result.Score:N0} x{result.MaxCombo} " +
                      $"P{result.Perfect}/G{result.Great}/g{result.Good}/B{result.Bad}/M{result.Miss}");
 
+            Core.Scores.ScoreSaveOutcome? outcome = SaveResult(result);
+
             if (_onComplete is not null)
             {
                 _onComplete(result);
+                return;
             }
-            else
-            {
-                Manager.Push(new ResultScreen(result, onDismiss: () => Manager.ReplaceAll(new MainMenuScreen())));
-            }
+
+            Manager.Push(new ResultScreen(result, outcome,
+                onDismiss: () => Manager.ReplaceAll(new MainMenuScreen())));
         }
     }
 
@@ -185,6 +187,25 @@ public sealed class GameplayScreen : Screen
             case 2:
                 Manager.ReplaceAll(new MainMenuScreen());
                 break;
+        }
+    }
+
+    private Core.Scores.ScoreSaveOutcome? SaveResult(PlayResult result)
+    {
+        try
+        {
+            Guid playerId = Context.Session.ActivePlayerId;
+            Core.Scores.ScoreSaveOutcome outcome = Context.Scores.Save(playerId, result, _chart);
+            Context.Profiles.AddPlayTime(playerId, (long)Math.Min(_conductor.DurationMs, _conductor.SongTimeMs));
+            Context.Session.Refresh();
+            Log.Info($"saved: +{outcome.PpBreakdown.FinalPp:0.0}pp  rating {outcome.Before.Rating:0.00}->{outcome.After.Rating:0.00}" +
+                     $"{(outcome.IsPersonalBest ? " PB" : "")}{(outcome.IsPpRecord ? " PPREC" : "")}");
+            return outcome;
+        }
+        catch (Exception ex)
+        {
+            Log.Error("failed to save score", ex);
+            return null;
         }
     }
 

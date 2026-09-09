@@ -1,5 +1,7 @@
 using Lumen.Core.Diagnostics;
 using Lumen.Core.Profiles;
+using Lumen.Core.Rating;
+using Lumen.Core.Scores;
 using Lumen.Game.Ui;
 using Lumen.Game.Ui.Widgets;
 using Microsoft.Xna.Framework;
@@ -16,6 +18,24 @@ public sealed class ProfileScreen : Screen
     private bool _renaming;
     private TextField _rename = new();
     private PlayerNameError _renameError = PlayerNameError.None;
+
+    private ProfileSummary _summary = null!;
+    private PlayerStatistics _stats = PlayerStatistics.Empty;
+    private SkillAxes _skill = SkillAxes.Zero;
+    private IReadOnlyList<BestPerformance> _best = System.Array.Empty<BestPerformance>();
+
+    public override void OnEnter() => Load();
+
+    public override void OnReveal() => Load();
+
+    private void Load()
+    {
+        Profile profile = Context.Session.ActiveProfile!;
+        _summary = Context.Scores.GetSummary(profile);
+        _stats = Context.Scores.GetStatistics(profile.PlayerId);
+        _skill = Context.Scores.GetSkillProfile(profile.PlayerId);
+        _best = Context.Scores.GetBestPerformances(profile.PlayerId, 5);
+    }
 
     public override void Update(InputFrame input)
     {
@@ -65,6 +85,7 @@ public sealed class ProfileScreen : Screen
             Guid id = Context.Session.ActivePlayerId;
             Context.Profiles.Rename(id, result.Normalized);
             Context.Session.Refresh();
+            Load();
             Log.Info($"profile renamed to {result.Normalized} (id unchanged: {id})");
             _renaming = false;
         }
@@ -83,12 +104,22 @@ public sealed class ProfileScreen : Screen
             new Rectangle(column.X, y, column.Width, 18), Theme.TextFaint);
         y += 40;
 
-        DrawStats(ui, new Rectangle(column.X, y, column.Width, 160));
-        y += 184;
+        DrawStats(ui, new Rectangle(column.X, y, column.Width, 150));
+        y += 172;
 
-        ui.Text(ui.Body(Theme.Label), "Stats begin after your first play.",
-            new Rectangle(column.X, y, column.Width, 18), Theme.TextFaint);
-        y += 40;
+        if (_stats.PlayCount == 0)
+        {
+            ui.Text(ui.Body(Theme.Label), "Stats begin after your first play.",
+                new Rectangle(column.X, y, column.Width, 18), Theme.TextFaint);
+            y += 34;
+        }
+        else
+        {
+            int half = (column.Width - 24) / 2;
+            DrawBestPerformances(ui, new Rectangle(column.X, y, half, 150));
+            DrawSkill(ui, new Rectangle(column.X + half + 24, y, half, 150));
+            y += 168;
+        }
 
         if (_renaming)
         {
@@ -106,14 +137,15 @@ public sealed class ProfileScreen : Screen
 
     private void DrawStats(UiRenderer ui, Rectangle area)
     {
+        bool played = _stats.PlayCount > 0;
         (string label, string value)[] cells =
         {
-            ("RATING", "—"),
-            ("TOTAL PP", "0"),
-            ("BEST PP", "0"),
-            ("ACCURACY", "—"),
-            ("PLAY COUNT", "0"),
-            ("FULL COMBOS", "0"),
+            ("RATING", played ? _summary.Rating.ToString("0.00") : "—"),
+            ("TOTAL PP", _summary.TotalPp.ToString("N0")),
+            ("BEST PP", _summary.BestPp.ToString("0")),
+            ("ACCURACY", played ? $"{_stats.AverageAccuracy:0.00}%" : "—"),
+            ("PLAY COUNT", _stats.PlayCount.ToString("N0")),
+            ("FULL COMBOS", _stats.FullCombos.ToString("N0")),
         };
 
         const int cols = 3;
@@ -135,6 +167,54 @@ public sealed class ProfileScreen : Screen
                 new Rectangle(cell.X + 14, cell.Y + 30, cell.Width - 28, 30), Theme.Text);
         }
     }
+
+    private void DrawBestPerformances(UiRenderer ui, Rectangle area)
+    {
+        ui.Text(ui.Mono(Theme.Label), "BEST PERFORMANCES",
+            new Rectangle(area.X, area.Y, area.Width, 16), Theme.Accent);
+        int y = area.Y + 24;
+
+        int rank = 1;
+        foreach (BestPerformance b in _best)
+        {
+            var row = new Rectangle(area.X, y, area.Width, 24);
+            ui.Text(ui.Mono(Theme.Label), $"#{rank}", row, Theme.TextFaint);
+            ui.Text(ui.Body(Theme.Label), Truncate(b.Chart.Title, 18),
+                new Rectangle(area.X + 28, y, area.Width - 90, 24), Theme.Text);
+            ui.Text(ui.Mono(Theme.Label), $"{b.Pp:0}pp", row, Theme.Accent, TextAlign.Right);
+            y += 24;
+            rank++;
+        }
+    }
+
+    private void DrawSkill(UiRenderer ui, Rectangle area)
+    {
+        ui.Text(ui.Mono(Theme.Label), "SKILL", new Rectangle(area.X, area.Y, area.Width, 16), Theme.Accent);
+        int y = area.Y + 24;
+
+        (string label, double value)[] axes =
+        {
+            ("Speed", _skill.Speed),
+            ("Technical", _skill.Technical),
+            ("Reading", _skill.Reading),
+            ("Stamina", _skill.Stamina),
+            ("Accuracy", _skill.Accuracy),
+        };
+
+        foreach ((string label, double value) in axes)
+        {
+            ui.Text(ui.Body(Theme.Label), label, new Rectangle(area.X, y, 90, 20), Theme.TextMuted);
+            int barX = area.X + 96;
+            int barW = area.Width - 140;
+            ui.FillRect(new Rectangle(barX, y + 8, barW, 3), Theme.Border);
+            ui.FillRect(new Rectangle(barX, y + 8, (int)(barW * Math.Clamp(value / 20.0, 0, 1)), 3), Theme.Accent);
+            ui.Text(ui.Mono(Theme.Label), value.ToString("0.0"),
+                new Rectangle(area.X, y, area.Width, 20), Theme.Text, TextAlign.Right);
+            y += 24;
+        }
+    }
+
+    private static string Truncate(string s, int max) => s.Length <= max ? s : s[..(max - 1)] + "…";
 
     private void DrawRename(UiRenderer ui, Rectangle box)
     {

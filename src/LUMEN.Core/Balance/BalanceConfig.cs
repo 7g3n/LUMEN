@@ -16,6 +16,10 @@ public sealed record BalanceConfig
 
     public ScoreConfig Score { get; init; } = new();
 
+    public PpConfig Pp { get; init; } = new();
+
+    public RatingConfig Rating { get; init; } = new();
+
     /// <summary>Judgements at or better than this keep the combo alive; worse ones break it.</summary>
     public Judgement ComboBreakThreshold { get; init; } = Judgement.Good;
 

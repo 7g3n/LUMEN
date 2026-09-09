@@ -89,7 +89,9 @@ public sealed class MainMenuScreen : Screen
         ui.Text(ui.Display(Theme.DisplayM), name,
             new Rectangle(0, top + 78, ui.Width, 28), Theme.Text, TextAlign.Center);
 
-        ProfileSummary summary = ProfileSummary.Empty(profile ?? Placeholder());
+        ProfileSummary summary = profile is not null
+            ? Context.Scores.GetSummary(profile)
+            : ProfileSummary.Empty(Placeholder());
         string rating = summary.PlayCount == 0 ? "Rating —" : $"Rating {summary.Rating:0.00}";
         ui.Text(ui.Mono(Theme.Label), rating,
             new Rectangle(0, top + 110, ui.Width, 20), Theme.TextMuted, TextAlign.Center);

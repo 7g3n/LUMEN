@@ -37,5 +37,67 @@ public static class SchemaMigrations
                 PRIMARY KEY (player_id, key)
             ) WITHOUT ROWID;
             """),
+
+        Migration.Sql(3, "scores_performances_snapshots",
+            """
+            CREATE TABLE scores (
+                score_id          TEXT PRIMARY KEY,
+                player_id         TEXT NOT NULL REFERENCES profiles (player_id) ON DELETE CASCADE,
+                chart_key         TEXT NOT NULL,
+                chart_title       TEXT NOT NULL,
+                chart_artist      TEXT NOT NULL,
+                chart_creator     TEXT NOT NULL DEFAULT '',
+                difficulty_name   TEXT NOT NULL,
+                difficulty_level  REAL NOT NULL,
+                score             INTEGER NOT NULL,
+                accuracy          REAL NOT NULL,
+                max_combo         INTEGER NOT NULL,
+                perfect           INTEGER NOT NULL,
+                great             INTEGER NOT NULL,
+                good              INTEGER NOT NULL,
+                bad               INTEGER NOT NULL,
+                miss              INTEGER NOT NULL,
+                full_combo        INTEGER NOT NULL,
+                all_perfect       INTEGER NOT NULL,
+                grade             TEXT NOT NULL,
+                played_utc        TEXT NOT NULL
+            ) WITHOUT ROWID;
+
+            CREATE INDEX ix_scores_player_chart ON scores (player_id, chart_key);
+            CREATE INDEX ix_scores_player_played ON scores (player_id, played_utc DESC);
+
+            CREATE TABLE performances (
+                performance_id      TEXT PRIMARY KEY,
+                score_id            TEXT NOT NULL REFERENCES scores (score_id) ON DELETE CASCADE,
+                player_id           TEXT NOT NULL REFERENCES profiles (player_id) ON DELETE CASCADE,
+                chart_key           TEXT NOT NULL,
+                pp                  REAL NOT NULL,
+                performance_rating  REAL NOT NULL,
+                base_pp             REAL NOT NULL,
+                acc_mul             REAL NOT NULL,
+                combo_mul           REAL NOT NULL,
+                miss_mul            REAL NOT NULL,
+                tech_mul            REAL NOT NULL,
+                speed_mul           REAL NOT NULL,
+                read_mul            REAL NOT NULL,
+                accuracy            REAL NOT NULL,
+                skill_attributes_json TEXT NOT NULL,
+                computed_utc        TEXT NOT NULL
+            ) WITHOUT ROWID;
+
+            CREATE INDEX ix_perf_player_pp ON performances (player_id, pp DESC);
+            CREATE INDEX ix_perf_player_chart ON performances (player_id, chart_key);
+
+            CREATE TABLE rating_snapshots (
+                snapshot_id  TEXT PRIMARY KEY,
+                player_id    TEXT NOT NULL REFERENCES profiles (player_id) ON DELETE CASCADE,
+                rating       REAL NOT NULL,
+                total_pp     REAL NOT NULL,
+                best_pp      REAL NOT NULL,
+                computed_utc TEXT NOT NULL
+            ) WITHOUT ROWID;
+
+            CREATE INDEX ix_snapshots_player ON rating_snapshots (player_id, computed_utc DESC);
+            """),
     };
 }

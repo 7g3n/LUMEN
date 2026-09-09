@@ -83,13 +83,23 @@ falling notes, judgement popups, combo/score HUD, pause, countdown), `ResultScre
 audio; determinism test passes across 60/240/143 fps slicing; judgement/accuracy/combo/
 score fully `BalanceConfig`-driven; 116 unit tests green; gameplay renders (screenshot).
 
-### Phase 4 — Rating / PP / performance / statistics (§28–34, §37–40)
-`RatingEngine` (weighted best-N, config decay, pure). `PPAlgorithm` (8 methods, pure, each tested).
-Atomic score-save transaction (§11). Statistics aggregation. Best Performances.
-PB / PP-record / Rating-record / FC detection. Result-screen count-up animation.
-Rule-based skill profile.
-**Exit:** large PP & Rating test suites (boundary + monotonicity + regression-locked);
-crash mid-save → clean rollback; profile shows all headline numbers; skill axes computed.
+### Phase 4 — Rating / PP / performance / statistics (§28–34, §37–40) ✅
+Core: `PpConfig` / `RatingConfig` (in `balance.json`). `PpAlgorithm` — the 8 methods
+(§31) each pure and independently tested. `PerformanceRating` (per-play, feeds the pool).
+`RatingEngine` (decay-weighted top-N mean; `ComputeTotalPp` decayed sum). `SkillProfile`
+(5 axes from best performances, §40). `DifficultyAnalyzer` (light rule-based attributes
++ estimated level, §53 preview). `ChartKey` (stable per-chart id until Phase 5/7).
+Data: schema v3 (`scores`, `performances`, `rating_snapshots`). `ScoreRepository.Save`
+= one transaction (§11): insert score → insert performance → recompute snapshot;
+rollback leaves nothing. Best Performances, statistics, skill profile, recent plays.
+Game: `GameContext.Scores`; `GameplayScreen` saves on finish + accrues play time;
+`ResultScreen` shows +PP and the Rating change with a staged count-up (§38) and
+NEW PERSONAL BEST / PP RECORD / RATING RECORD badges (§37); Profile + Main Menu show
+real numbers.
+**Exit met:** PP/Rating suites with boundary + monotonicity + regression-locked values;
+`A_failed_save_rolls_back_completely` proves atomic rollback; `--autoplay` twice shows
+`rating 0.00->4.95 PB PPREC` then `4.95->4.95` (no double-count); profile screen shows
+all headline numbers + skill axes (screenshot); 174 unit tests green.
 
 ### Phase 5 — Song select (§26–27, §35, §39, §62–63)
 Library scan → DB; Song Select with per-chart best score/accuracy/PP; difficulty banding.
