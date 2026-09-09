@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    LUMEN.Game — the MonoGame application. Produces LUMEN.exe.
+    Engine loop, input providers, UI toolkit, screens, editor, rendering, animation.
+  -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <RootNamespace>Lumen.Game</RootNamespace>
+    <AssemblyName>LUMEN</AssemblyName>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <RollForward>Major</RollForward>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\LUMEN.Core\LUMEN.Core.csproj" />
+    <ProjectReference Include="..\LUMEN.Data\LUMEN.Data.csproj" />
+    <ProjectReference Include="..\LUMEN.Audio\LUMEN.Audio.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="MonoGame.Framework.DesktopGL" Version="3.8.2.1105" />
+  </ItemGroup>
+
+</Project>

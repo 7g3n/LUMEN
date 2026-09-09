@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    LUMEN.Data — persistence. SQLite, repositories, migrations, backup, export/import,
+    path resolution, atomic file writes. Game logic never references this directly;
+    it goes through repository interfaces defined in LUMEN.Core.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <RootNamespace>Lumen.Data</RootNamespace>
+    <AssemblyName>LUMEN.Data</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\LUMEN.Core\LUMEN.Core.csproj" />
+  </ItemGroup>
+
+  <!-- SQLite dependencies land in Phase 1. -->
+
+</Project>

@@ -1,0 +1,31 @@
+# Build output
+bin/
+obj/
+[Bb]uild/
+artifacts/
+publish/
+*.user
+*.suo
+
+# Rider / VS
+.idea/
+.vs/
+
+# MonoGame content pipeline
+*.mgcb.bin
+Content/bin/
+Content/obj/
+
+# OS
+Thumbs.db
+.DS_Store
+
+# LUMEN local runtime data (portable builds only — never commit user data)
+/data/
+*.lumenbackup
+*.db
+*.db-wal
+*.db-shm
+
+# Tooling
+.dotnet/

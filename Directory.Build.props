@@ -1,0 +1,22 @@
+<Project>
+
+  <!-- Common settings for every LUMEN project. -->
+  <PropertyGroup>
+    <LangVersion>12</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <WarningLevel>5</WarningLevel>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <Deterministic>true</Deterministic>
+    <InvariantGlobalization>false</InvariantGlobalization>
+
+    <!-- Product identity. The in-game name is NOT taken from here (see GameIdentity.cs);
+         these are assembly-level fields only. -->
+    <Product>LUMEN</Product>
+    <Company>LUMEN</Company>
+    <Version>0.1.0</Version>
+    <Copyright>© 2026 LUMEN project</Copyright>
+  </PropertyGroup>
+
+</Project>
