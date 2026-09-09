@@ -13,6 +13,8 @@
 *.editorconfig text eol=lf
 
 # Binary assets
+*.ttf binary
+*.otf binary
 *.png binary
 *.jpg binary
 *.ogg binary
