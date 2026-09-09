@@ -52,11 +52,19 @@ Window/display config (`settings/display.json`), `GameClock`, refresh-rate `Fram
 hard crash, logged + report written; frame limiter holds monitor refresh (240 Hz → 239 fps);
 29 unit tests green (identity, paths, atomic file, migrations, database, display config, clock).
 
-### Phase 2 — Player setup & profile (§4–8, §80–83)
-First-run setup + name validation (1–16, Unicode, trim, no empty/control chars).
-Profile creation (`playerId` UUID + `displayName`). `ProfileRepository`, `SettingsRepository`.
-Rename preserving score links. Multi-profile data model, single-profile UI. Settings shell.
-**Exit:** setup → profile row; rename keeps `player_id`; validation test matrix; settings persist.
+### Phase 2 — Player setup & profile (§4–8, §80–83) ✅
+`PlayerName` validation (grapheme-counted 1–16, Unicode/emoji, trim + whitespace collapse,
+rejects control/format/private-use/lone-surrogate). `Profile` + `ProfileSummary`;
+`IProfileRepository` / `ISettingsRepository` in Core, implemented in Data over schema v2
+(`profiles`, `settings` with FK cascade). `Session` (active profile via `app_meta`,
+restored on launch).
+UI toolkit: `Theme`, `InputRouter`/`InputFrame` (window text-input, IME-aware),
+`UiRenderer`, `Screen`/`ScreenManager` (stack + fade), `TextField`, `MenuList`, `ScreenChrome`.
+Screens: Setup, Welcome, MainMenu, Profile (+ inline rename), Settings (audio/gameplay/
+timing/display rows persisted live), Placeholder. `--capture` renders each screen to PNG.
+**Exit met:** setup creates a UUID profile; rename keeps `player_id` (test); 20-case name
+validation matrix; settings survive a DB reopen (test); 75 unit tests green; all 4 screens
+render cleanly (visually verified).
 
 ### Phase 3 — Game engine (§15–25)
 NAudio engine; WAV/OGG/MP3 decode; sample-accurate position; `Conductor` + BPM map.

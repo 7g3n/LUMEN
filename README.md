@@ -7,10 +7,13 @@ and a built-in chart editor. Play · compete · create — in one `LUMEN.exe`.
 
 ## Status
 
-**Phase 1 — Windows EXE foundation: complete.** Solution + five projects, `GameIdentity`,
-`LumenPaths`, a titled window with its own clock and a refresh-rate frame limiter,
-day-rolling logs, a crash guard with an in-app error screen, atomic file writes, and a
-SQLite database with a transactional migration runner (schema v1). 29 unit tests green.
+**Phase 2 — Player setup & profile: complete.** On top of the Phase 1 foundation:
+grapheme-aware player-name validation, `Profile` / settings repositories over SQLite
+schema v2, an active-profile `Session`, a small screen + UI toolkit (`ScreenManager`,
+`TextField`, `MenuList`, theme), and the Setup / Main Menu / Profile / Settings screens.
+Renaming a profile keeps its UUID and every future score link. 75 unit tests green.
+
+Run `LUMEN.exe --capture <dir>` to render each screen to a PNG.
 
 See [`docs/PLAN.md`](docs/PLAN.md) for the full 11-phase plan and
 [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the design.

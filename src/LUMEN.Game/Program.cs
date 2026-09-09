@@ -60,11 +60,19 @@ internal static class Program
 }
 
 /// <summary>Command-line switches. Real configuration lives in settings files.</summary>
-internal sealed record LaunchOptions(bool Smoke, bool CrashTest)
+internal sealed record LaunchOptions(bool Smoke, bool CrashTest, string? CaptureDir)
 {
     public static LaunchOptions Parse(string[] args)
     {
         bool Has(string name) => Array.Exists(args, a => a.Equals(name, StringComparison.OrdinalIgnoreCase));
-        return new LaunchOptions(Smoke: Has("--smoke"), CrashTest: Has("--crashtest"));
+
+        string? captureDir = null;
+        int i = Array.FindIndex(args, a => a.Equals("--capture", StringComparison.OrdinalIgnoreCase));
+        if (i >= 0 && i + 1 < args.Length)
+        {
+            captureDir = args[i + 1];
+        }
+
+        return new LaunchOptions(Smoke: Has("--smoke"), CrashTest: Has("--crashtest"), CaptureDir: captureDir);
     }
 }

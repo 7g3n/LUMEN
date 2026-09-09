@@ -1,30 +1,28 @@
 using System;
-using FontStashSharp;
+using System.IO;
 using Lumen.Core;
 using Lumen.Core.Diagnostics;
 using Lumen.Data;
+using Lumen.Data.Repositories;
 using Lumen.Game.Config;
 using Lumen.Game.Engine;
 using Lumen.Game.Rendering;
+using Lumen.Game.Screens;
+using Lumen.Game.Ui;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
-using Microsoft.Xna.Framework.Input;
 
 namespace Lumen.Game;
 
 /// <summary>
-/// Phase 1 foundation: a titled window, our own high-resolution clock and frame
-/// limiter, a perf overlay, and a fatal-error screen that catches exceptions thrown
-/// inside the loop instead of letting the process die (spec §1, §68, §96). Screens,
-/// audio and input abstraction arrive in Phase 2+.
+/// The application shell: window, clock, frame limiter, input routing, and the screen
+/// stack. Game rules live in LUMEN.Core; this class only wires and draws.
 /// </summary>
 internal sealed class LumenGame : Microsoft.Xna.Framework.Game
 {
-    private static readonly Color Ground = new(0x09, 0x0B, 0x10);
-    private static readonly Color Accent = new(0x6F, 0xE0, 0xFF);
-    private static readonly Color TextDim = new(0x8B, 0x94, 0xA5);
     private static readonly Color ErrorGround = new(0x1A, 0x0C, 0x0E);
     private static readonly Color ErrorAccent = new(0xE5, 0x6A, 0x60);
+    private static readonly Color OverlayText = new(0x8B, 0x94, 0xA5);
 
     private readonly GraphicsDeviceManager _graphics;
     private readonly LumenPaths _paths;
@@ -37,6 +35,10 @@ internal sealed class LumenGame : Microsoft.Xna.Framework.Game
 
     private SpriteBatch _spriteBatch = null!;
     private Texture2D _pixel = null!;
+    private UiRenderer _ui = null!;
+    private InputRouter _input = null!;
+    private ScreenManager _screens = null!;
+    private GameContext _context = null!;
 
     private double _frameMsSmoothed;
     private (Exception ex, string report)? _fatal;
@@ -70,15 +72,36 @@ internal sealed class LumenGame : Microsoft.Xna.Framework.Game
         _paths.EnsureCreated();
 
         int refresh = DisplayInfo.GetPrimaryRefreshRate();
-        _limiter.TargetFps = _display.FollowRefreshRate
-            ? Math.Max(refresh, 60)
-            : _display.FpsCap;
+        _limiter.TargetFps = _display.FollowRefreshRate ? Math.Max(refresh, 60) : _display.FpsCap;
+        Log.Info($"display {_display.Width}x{_display.Height} vsync={_display.Vsync} " +
+                 $"cap={(_limiter.TargetFps == 0 ? "uncapped" : _limiter.TargetFps)} (monitor {refresh}Hz)");
 
-        Log.Info($"display {_display.Width}x{_display.Height} " +
-                 $"vsync={_display.Vsync} cap={(_limiter.TargetFps == 0 ? "uncapped" : _limiter.TargetFps)} " +
-                 $"(monitor {refresh}Hz)");
+        BuildContext();
 
         base.Initialize();
+    }
+
+    private void BuildContext()
+    {
+        var profiles = new ProfileRepository(_db);
+        var settings = new SettingsRepository(_db);
+        var appMeta = new AppMetaStore(_db);
+        var session = new Session(_db, profiles, appMeta);
+        session.Restore();
+
+        _context = new GameContext
+        {
+            Paths = _paths,
+            Database = _db,
+            Profiles = profiles,
+            Settings = settings,
+            AppMeta = appMeta,
+            Display = _display,
+            Session = session,
+            RequestExit = Exit,
+        };
+
+        _screens = new ScreenManager(_context);
     }
 
     protected override void LoadContent()
@@ -87,23 +110,84 @@ internal sealed class LumenGame : Microsoft.Xna.Framework.Game
         _pixel = new Texture2D(GraphicsDevice, 1, 1);
         _pixel.SetData(new[] { Color.White });
         _fonts.Load(AppContext.BaseDirectory);
+
+        _ui = new UiRenderer(GraphicsDevice, _spriteBatch, _pixel, _fonts);
+        _input = new InputRouter(Window);
+
+        if (_options.CaptureDir is { } dir)
+        {
+            RunCapture(dir);
+            Exit();
+            return;
+        }
+
+        _screens.SetRoot(_context.Session.HasProfile
+            ? new MainMenuScreen()
+            : new SetupScreen());
+    }
+
+    /// <summary>Renders each key screen to a PNG for visual verification, then exits.</summary>
+    private void RunCapture(string dir)
+    {
+        Directory.CreateDirectory(dir);
+
+        if (!_context.Session.HasProfile)
+        {
+            var demo = _context.Profiles.Create("Nagisa");
+            _context.Session.SetActive(demo);
+        }
+
+        (string name, Screen screen)[] shots =
+        {
+            ("1-setup", new SetupScreen()),
+            ("2-menu", new MainMenuScreen()),
+            ("3-profile", new ProfileScreen()),
+            ("4-settings", new SettingsScreen()),
+        };
+
+        using var target = new RenderTarget2D(GraphicsDevice, _display.Width, _display.Height);
+
+        foreach ((string name, Screen screen) in shots)
+        {
+            _screens.SetRoot(screen);
+            GraphicsDevice.SetRenderTarget(target);
+            _screens.Draw(_ui);
+            GraphicsDevice.SetRenderTarget(null);
+
+            string path = Path.Combine(dir, $"lumen-{name}.png");
+            using var fs = File.Create(path);
+            target.SaveAsPng(fs, target.Width, target.Height);
+            Log.Info($"captured {path}");
+            Console.WriteLine($"captured {path}");
+        }
     }
 
     protected override void Update(GameTime gameTime)
     {
         _clock.Advance();
+        InputFrame input = _input.BeginFrame(_clock.DeltaSeconds);
 
         try
         {
-            KeyboardState keys = Keyboard.GetState();
-            if (keys.IsKeyDown(Keys.Escape))
+            if (_options.CrashTest && _clock.TotalSeconds >= 1.5)
             {
-                Exit();
+                throw new InvalidOperationException("Deliberate crash test (--crashtest).");
             }
 
             if (_fatal is null)
             {
-                UpdateGame();
+                _screens.Update(input);
+            }
+            else if (input.Pressed(Microsoft.Xna.Framework.Input.Keys.Escape))
+            {
+                Exit();
+            }
+
+            if (_options.Smoke && _clock.TotalSeconds >= 2.0)
+            {
+                Log.Info($"smoke ok - ~{_clock.Fps:F0} fps");
+                Console.WriteLine($"smoke ok - ~{_clock.Fps:F0} fps");
+                Exit();
             }
         }
         catch (Exception ex)
@@ -114,27 +198,9 @@ internal sealed class LumenGame : Microsoft.Xna.Framework.Game
         base.Update(gameTime);
     }
 
-    private void UpdateGame()
-    {
-        double t = _clock.TotalSeconds;
-
-        if (_options.CrashTest && t >= 1.5)
-        {
-            throw new InvalidOperationException("Deliberate crash test (--crashtest).");
-        }
-
-        if (_options.Smoke && t >= 2.0)
-        {
-            Log.Info($"smoke ok - ~{_clock.Fps:F0} fps");
-            Console.WriteLine($"smoke ok - ~{_clock.Fps:F0} fps");
-            Exit();
-        }
-    }
-
     protected override void Draw(GameTime gameTime)
     {
-        double frameMs = _clock.DeltaSeconds * 1000.0;
-        _frameMsSmoothed += (frameMs - _frameMsSmoothed) * 0.1;
+        _frameMsSmoothed += (_clock.DeltaSeconds * 1000.0 - _frameMsSmoothed) * 0.1;
 
         try
         {
@@ -144,12 +210,15 @@ internal sealed class LumenGame : Microsoft.Xna.Framework.Game
             }
             else
             {
-                DrawGame();
+                _screens.Draw(_ui);
+                if (_display.ShowPerfOverlay && _fonts.Loaded)
+                {
+                    DrawOverlay();
+                }
             }
         }
         catch (Exception ex)
         {
-            // A failure in the game draw path is still recoverable to the error screen.
             if (_fatal is null)
             {
                 EnterFatal(ex);
@@ -160,54 +229,17 @@ internal sealed class LumenGame : Microsoft.Xna.Framework.Game
         _limiter.Tick();
     }
 
-    private void DrawGame()
-    {
-        GraphicsDevice.Clear(Ground);
-
-        int w = GraphicsDevice.Viewport.Width;
-        int h = GraphicsDevice.Viewport.Height;
-
-        float pulse = (float)((Math.Sin(_clock.TotalSeconds * 1.5) + 1) / 2);
-        var bar = new Rectangle((int)(w * 0.15f), h / 2 - 2, (int)(w * 0.7f * pulse) + 1, 4);
-
-        _spriteBatch.Begin();
-        _spriteBatch.Draw(_pixel, bar, Accent);
-
-        if (_fonts.Loaded)
-        {
-            SpriteFontBase title = _fonts.Display(48);
-            _spriteBatch.DrawString(title, GameIdentity.Name, new Vector2(w * 0.15f, h * 0.32f), Accent);
-
-            SpriteFontBase tag = _fonts.Mono(13);
-            _spriteBatch.DrawString(tag, GameIdentity.Tagline, new Vector2(w * 0.15f + 2, h * 0.32f + 62), TextDim);
-
-            if (_display.ShowPerfOverlay)
-            {
-                DrawOverlay();
-            }
-        }
-
-        _spriteBatch.End();
-    }
-
     private void DrawOverlay()
     {
-        SpriteFontBase font = _fonts.Mono(13);
-        string[] lines =
-        {
-            $"{_clock.Fps,6:F0} fps   {_frameMsSmoothed,5:F2} ms",
-            $"{GraphicsDevice.Viewport.Width}x{GraphicsDevice.Viewport.Height}   " +
-                $"cap {( _limiter.TargetFps == 0 ? "off" : _limiter.TargetFps.ToString())}",
-            $"db schema v{_db.SchemaVersion}   frame {_clock.FrameCount}",
-            _paths.Root,
-        };
+        var font = _ui.Mono(Theme.Mono);
+        string line = $"{_clock.Fps,5:F0} fps  {_frameMsSmoothed,4:F1} ms  " +
+                      $"{_ui.Width}x{_ui.Height}  db v{_db.SchemaVersion}";
 
-        var pos = new Vector2(16, 14);
-        foreach (string line in lines)
-        {
-            _spriteBatch.DrawString(font, line, pos, TextDim);
-            pos.Y += 17;
-        }
+        _ui.Begin();
+        var size = _ui.Measure(font, line);
+        _ui.FillRect(new Rectangle(8, 8, (int)size.X + 16, (int)size.Y + 10), Theme.Ground.WithAlpha(0.6f));
+        _ui.Text(font, line, new Microsoft.Xna.Framework.Vector2(16, 13), OverlayText);
+        _ui.End();
     }
 
     private void DrawFatal(Exception ex, string reportPath)
@@ -215,23 +247,23 @@ internal sealed class LumenGame : Microsoft.Xna.Framework.Game
         GraphicsDevice.Clear(ErrorGround);
         int w = GraphicsDevice.Viewport.Width;
 
-        _spriteBatch.Begin();
-        _spriteBatch.Draw(_pixel, new Rectangle(0, 0, w, 3), ErrorAccent);
+        _ui.Begin();
+        _ui.FillRect(new Rectangle(0, 0, w, 3), ErrorAccent);
 
         if (_fonts.Loaded)
         {
-            var x = 48f;
-            _spriteBatch.DrawString(_fonts.Display(30), $"{GameIdentity.Name} had to stop", new Vector2(x, 60), ErrorAccent);
-            _spriteBatch.DrawString(_fonts.Body(16), $"{ex.GetType().Name}: {ex.Message}", new Vector2(x, 116), Color.White);
-            _spriteBatch.DrawString(_fonts.Mono(13), $"report: {reportPath}", new Vector2(x, 156), TextDim);
-            _spriteBatch.DrawString(_fonts.Mono(13), "press Esc to close", new Vector2(x, 182), TextDim);
-        }
-        else
-        {
-            _spriteBatch.Draw(_pixel, new Rectangle(48, 60, w - 96, 8), ErrorAccent);
+            const float x = 48f;
+            _ui.Text(_ui.Display(Theme.DisplayL), $"{GameIdentity.Name} had to stop",
+                new Microsoft.Xna.Framework.Vector2(x, 64), ErrorAccent);
+            _ui.Text(_ui.Body(Theme.Body), $"{ex.GetType().Name}: {ex.Message}",
+                new Microsoft.Xna.Framework.Vector2(x, 120), Color.White);
+            _ui.Text(_ui.Mono(Theme.Mono), $"report: {reportPath}",
+                new Microsoft.Xna.Framework.Vector2(x, 158), OverlayText);
+            _ui.Text(_ui.Mono(Theme.Mono), "press Esc to close",
+                new Microsoft.Xna.Framework.Vector2(x, 182), OverlayText);
         }
 
-        _spriteBatch.End();
+        _ui.End();
     }
 
     private void EnterFatal(Exception ex)
@@ -241,7 +273,6 @@ internal sealed class LumenGame : Microsoft.Xna.Framework.Game
 
         if (_options.Smoke || _options.CrashTest)
         {
-            // In non-interactive verification runs, don't sit on the error screen.
             Console.WriteLine($"fatal handled: {ex.GetType().Name} -> {report}");
             Exit();
         }

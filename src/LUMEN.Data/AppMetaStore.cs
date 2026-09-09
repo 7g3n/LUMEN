@@ -14,6 +14,7 @@ public sealed class AppMetaStore
     public const string KeyCreatedUtc = "created_utc";
     public const string KeyLastVersion = "last_version";
     public const string KeyLastLaunchUtc = "last_launch_utc";
+    public const string KeyActivePlayerId = "active_player_id";
 
     private readonly Database _db;
 
@@ -41,6 +42,18 @@ public sealed class AppMetaStore
     }
 
     public string InstallId => Get(KeyInstallId) ?? "";
+
+    public Guid? ActivePlayerId
+    {
+        get => Guid.TryParse(Get(KeyActivePlayerId), out Guid id) ? id : null;
+        set
+        {
+            if (value is { } id)
+            {
+                Set(KeyActivePlayerId, id.ToString("D"));
+            }
+        }
+    }
 
     /// <summary>
     /// Ensures the install-identity rows exist and records this launch. Returns the
