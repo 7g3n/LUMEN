@@ -22,9 +22,9 @@ internal static class Program
         CrashGuard.Install(paths);
         FrameLimiter.RequestHighResolutionTimer();
 
-        Log.Info($"=== {GameIdentity.Name} {GameIdentity.Version} starting ===");
+        Log.Info($"=== {GameIdentity.Name} {GameIdentity.FullVersion} starting ===");
         Log.Info($"data root: {paths.Root}");
-        Console.WriteLine($"{GameIdentity.Name} {GameIdentity.Version}  |  {paths.Root}  |  log: {log.CurrentFilePath}");
+        Console.WriteLine($"{GameIdentity.Name} {GameIdentity.FullVersion}  |  {paths.Root}  |  log: {log.CurrentFilePath}");
 
         Database? db = null;
         try

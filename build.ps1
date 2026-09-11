@@ -7,14 +7,14 @@
   builds even though the machine-wide dotnet has no SDK.
 
 .PARAMETER Task
-  restore | build | test | run | smoke | publish | clean   (default: build)
+  restore | build | test | run | smoke | publish | release | clean   (default: build)
 
 .EXAMPLE
   .\build.ps1 test
   .\build.ps1 run
 #>
 param(
-    [ValidateSet('restore', 'build', 'test', 'run', 'smoke', 'crashtest', 'publish', 'clean')]
+    [ValidateSet('restore', 'build', 'test', 'run', 'smoke', 'crashtest', 'publish', 'release', 'clean')]
     [string]$Task = 'build',
 
     [ValidateSet('Debug', 'Release')]
@@ -48,8 +48,15 @@ switch ($Task) {
         Get-ChildItem $repo -Include bin, obj -Recurse -Directory | Remove-Item -Recurse -Force
     }
     'publish' {
+        # Native libraries are deliberately NOT self-extracted: MonoGame looks for SDL2.dll
+        # next to its own assembly, and a single-file bundle has no such place, so bundling
+        # them yields an executable that cannot start. See docs/RELEASE.md.
         dotnet publish $game -c Release -r win-x64 --self-contained `
-            -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true `
+            -p:PublishSingleFile=true `
             -o (Join-Path $repo 'publish')
+    }
+    'release' {
+        # Every artifact, plus the verification pass over what it just built (§101).
+        & (Join-Path $repo 'tools/release.ps1')
     }
 }

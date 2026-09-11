@@ -126,7 +126,21 @@ atomic rename over target. A kill at any point leaves the previous good file int
 ## Distribution (§72)
 
 - `dotnet publish -c Release -r win-x64 --self-contained -p:PublishSingleFile=true`
-  `-p:IncludeNativeLibrariesForSelfExtract=true` → `LUMEN.exe` (no runtime install needed).
+  → `LUMEN.exe` carrying the application and the whole .NET runtime, so no runtime install
+  is needed. Release builds are ReadyToRun; without it the first frame of a play pays to
+  JIT the gameplay draw path (§68).
+- **Not** `-p:IncludeNativeLibrariesForSelfExtract=true`, which this originally specified.
+  MonoGame resolves `SDL2.dll` by looking next to its own assembly, and inside a
+  single-file bundle there is no such place, so bundling the natives produces an
+  executable that dies on startup with *Failed to load library: SDL2.dll* — and it
+  swallows `assets/fonts` into the bundle too, so even a fixed loader would render every
+  screen without text. `SDL2.dll`, `soft_oal.dll` and `e_sqlite3.dll` ship beside the game.
+- `NAudio` is a meta-package that pulls in `NAudio.WinForms`, which drags the entire
+  Microsoft.WindowsDesktop runtime — WPF and WinForms — into a self-contained publish.
+  `LUMEN.Audio.csproj` excludes it: 183 MB becomes 86 MB, and the release verification
+  fails if it ever comes back.
 - Installer: Inno Setup script in `tools/installer/` → `LUMEN-Setup.exe`. Installs to
   `%ProgramFiles%\LUMEN`; data goes to `%LOCALAPPDATA%\LUMEN` at runtime (§73).
 - Portable: zip the publish folder → `LUMEN-Portable.zip` (+ `portable.txt`).
+- One command builds and then verifies all three: `tools/release.ps1`. See
+  [`RELEASE.md`](RELEASE.md) for the §101 checklist it runs.

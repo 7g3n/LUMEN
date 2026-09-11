@@ -60,7 +60,7 @@ public static class CrashGuard
             string path = Path.Combine(dir, $"crash-{DateTime.Now:yyyyMMdd-HHmmss}.txt");
 
             string body =
-                $"{GameIdentity.Name} {GameIdentity.Version}\n" +
+                $"{GameIdentity.Name} {GameIdentity.FullVersion}\n" +
                 $"{DateTime.Now:O}\n" +
                 $"OS: {Environment.OSVersion} / CLR: {Environment.Version}\n" +
                 $"64-bit process: {Environment.Is64BitProcess}\n\n" +

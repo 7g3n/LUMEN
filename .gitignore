@@ -29,3 +29,7 @@ Thumbs.db
 
 # Tooling
 .dotnet/
+
+# Release artifacts (tools/release.ps1)
+/dist/
+/publish/

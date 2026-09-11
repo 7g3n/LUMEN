@@ -17,6 +17,16 @@
   <ItemGroup>
     <PackageReference Include="NAudio" Version="2.2.1" />
     <PackageReference Include="NAudio.Vorbis" Version="1.5.0" />
+
+    <!--
+      NAudio is a meta-package, and one of the pieces it pulls in is NAudio.WinForms:
+      a handful of UI controls this game has no use for, which drag the whole
+      Microsoft.WindowsDesktop runtime - WPF and WinForms both - into a self-contained
+      publish. Excluding it drops that framework and the native DLLs that come with it
+      from everything we ship.
+    -->
+    <PackageReference Include="NAudio.WinForms" Version="2.2.1"
+                      ExcludeAssets="all" PrivateAssets="all" />
   </ItemGroup>
 
 </Project>

@@ -7,6 +7,25 @@ and a built-in chart editor. Play · compete · create — in one `LUMEN.exe`.
 
 ## Status
 
+**Phase 11 — Windows release: complete.** One command builds all three artifacts and then
+runs the ones it built:
+
+```powershell
+.\tools\release.ps1
+```
+
+`LUMEN-0.1.0-win-x64\` (86 MB), `LUMEN-Portable-0.1.0.zip` (35 MB) and
+`LUMEN-Setup-0.1.0.exe` (28 MB), followed by twenty checks the script exits on: that the
+game starts, plays a chart end to end without a frame over budget, catches a deliberate
+crash, keeps its data in `%LOCALAPPDATA%` and nothing in its install folder, moves that
+data beside the executable when `portable.txt` is present, and needs no .NET installed.
+Three things turned up that would otherwise have shipped: the single-file publish as
+originally specified could not start at all (MonoGame cannot find `SDL2.dll` inside a
+bundle), an unused NAudio dependency was dragging all of WPF and WinForms into the
+download and doubling it, and a silent uninstall deleted the player's profiles, scores and
+charts — a confirmation prompt is answered Yes when nobody is there to see it. 541 unit
+tests green. See [`docs/RELEASE.md`](docs/RELEASE.md).
+
 **Phase 10 — Polish, optimization and accessibility: complete.** A new player is taken
 from naming themselves, through a tutorial that asks them to press each lane key rather
 than telling them which is which, straight into their first song — no menu to navigate and
@@ -58,8 +77,13 @@ See [`docs/PLAN.md`](docs/PLAN.md) for the full 11-phase plan and
 .\build.ps1 run       # launch the game
 .\build.ps1 smoke     # launch, verify the window comes up, exit
 .\build.ps1 crashtest # launch, throw in the loop, verify the error screen catches it
-.\build.ps1 publish   # self-contained single-file LUMEN.exe -> .\publish\
+.\build.ps1 publish   # self-contained LUMEN.exe -> .\publish\
+.\build.ps1 release   # every release artifact, then verify them -> .\dist\
 ```
+
+`release` is the one that matters before shipping: it refuses to build from a red test
+suite, produces the installer, the portable zip and the published folder, and then runs
+the game it just built through the checks in [`docs/RELEASE.md`](docs/RELEASE.md).
 
 Or use the SDK directly:
 

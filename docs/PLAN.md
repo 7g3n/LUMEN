@@ -286,8 +286,58 @@ time, and one or two frames per run still exceed it. Both are measured, attribut
 outside the game — the driver's present call, and the limiter's next tick after it. The
 number the game can be held to is the game's own, and that is zero.
 
-### Phase 11 — Windows release (§72–73, §101)
-Self-contained single-file `LUMEN.exe`; Inno Setup `LUMEN-Setup.exe`; `LUMEN-Portable.zip`.
-Version stamping; §101 build-verification; offline smoke-test matrix.
-**Exit:** all three artifacts from one script; clean VM: installer → full loop offline;
-portable zip runs without install; §101 fully ticked.
+### Phase 11 — Windows release (§72–73, §101) ✅
+`tools/release.ps1` builds all three artifacts and then runs the artifacts it built. The
+verification is the half that matters: an installer that compiles proves nothing, while an
+executable that starts, plays a chart end to end, catches a deliberate crash and writes its
+data where it promised is evidence. Twenty checks, each one a failure the script exits on.
+
+Version stamping now has one source. `GameIdentity.Version` was a constant "kept in sync
+with Directory.Build.props" — a promise that holds until the first release and then quietly
+stops — and reads the assembly instead. The SDK appends the commit hash, so a build reports
+itself as `0.1.0+b00fb85` in the title bar, the log header and every crash report, shortened
+to seven characters because nobody reads forty off a title bar. Release builds are
+ReadyToRun, carried over from Phase 10's measurement.
+
+Three findings, each of which would have shipped:
+
+*The single-file publish this plan specified does not start.* With
+`IncludeNativeLibrariesForSelfExtract=true` the executable dies immediately on *Failed to
+load library: SDL2.dll* — MonoGame resolves it by looking next to its own assembly, and
+inside a bundle there is no such place — and the same flag swallows `assets/fonts`, so even
+a fixed loader would render every screen without text. `SDL2.dll`, `soft_oal.dll` and
+`e_sqlite3.dll` ship beside the game, which is the honest shape of this application. The
+promise that matters — no .NET install — is kept: the runtime is inside the exe.
+
+*The download was twice the size it needed to be.* `NAudio` is a meta-package, and one of
+its pieces is `NAudio.WinForms`: a few UI controls this game has no use for, which drag all
+of WPF and WinForms into a self-contained publish. Excluding it took 183 MB to 86 MB, and a
+check now fails if the desktop runtime ever returns.
+
+*A silent uninstall deleted the player's data.* The uninstaller asks before removing
+profiles, scores and charts, and the prompt defaults to No. Under
+`/VERYSILENT /SUPPRESSMSGBOXES` — which is how every package manager and every deployment
+tool uninstalls — that box is answered Yes regardless, and a whole data folder went with it.
+Found the only way such things are found, by running a silent uninstall and watching it
+happen. "Nobody could be asked" must never be read as "yes, delete my rating", so the
+deletion is skipped outright when there is nobody to ask. Pinned by a test.
+
+The installer also offers a per-user install, and not only for testability: plenty of people
+cannot elevate on the machine they play on, and a rhythm game is not worth an argument with
+an IT department.
+
+**Exit met:** 9 new tests (541 total, green). One command, from a clean `dist\`, produced
+`LUMEN-0.1.0-win-x64\` (86 MB), `LUMEN-Portable-0.1.0.zip` (35 MB) and
+`LUMEN-Setup-0.1.0.exe` (28 MB), then passed all twenty checks. The installer was run for
+real: a per-user silent install, the installed copy played the practice chart to
+1,000,000 / 100.00% with zero frames over budget from the game's own work, kept its data in
+`%LOCALAPPDATA%\LUMEN`, wrote nothing into its own install folder, and uninstalled cleanly
+leaving the player's data behind. The portable zip carries its sentinel and keeps its data
+beside the executable. Everything above ran with no network connection of any kind.
+
+*Not met as literally written:* "clean VM". There was no clean virtual machine available,
+so the installer was verified by a real install-run-uninstall cycle on this machine rather
+than on a machine that had never seen .NET. What that does not prove is the one thing a
+clean VM is for — that nothing depends on a runtime or library already present here. The
+publish is self-contained and the verification checks there is no `runtimeconfig.json`
+beside the executable, which is the strongest evidence available without the VM.
