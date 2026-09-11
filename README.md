@@ -2,7 +2,7 @@
 
 ### 遊ぶ。競う。作る。 — ぜんぶ、ひとつの `LUMEN.exe` に。<br>Play. Compete. Create. — all in one `LUMEN.exe`.
 
-> **説明書はいらない。100時間後も、まだ伸びる。**
+> **説明書はいらない。100時間後も、まだ伸びる。**<br>
 > **No manual to read. Still getting better a hundred hours later.**
 
 完全オフラインの Windows 用リズムゲーム。総合レーティングと1プレイごとの PP、そして譜面エディタを内蔵しています。ダウンロードした後は、ネットワーク接続を一切必要としません。
