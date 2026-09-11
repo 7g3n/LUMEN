@@ -191,5 +191,127 @@ public static class SchemaMigrations
                 PRIMARY KEY (player_id, achievement_id)
             ) WITHOUT ROWID;
             """),
+        // Tournaments live entirely alongside normal play rather than inside it. Nothing
+        // here references `scores`, and nothing in `scores` references any of this: a
+        // tournament result is a separate fact about a separate competition, and the
+        // moment the two share a table somebody's everyday rating starts moving because
+        // an organiser picked a hard chart.
+        Migration.Sql(7, "tournaments",
+            """
+            CREATE TABLE tournaments (
+                tournament_id  TEXT PRIMARY KEY,
+                name           TEXT NOT NULL,
+                description    TEXT NOT NULL DEFAULT '',
+                organizer      TEXT NOT NULL DEFAULT '',
+                format         INTEGER NOT NULL,
+                status         INTEGER NOT NULL DEFAULT 0,
+                rules_json     TEXT NOT NULL,
+                rule_hash      TEXT NOT NULL DEFAULT '',
+                game_version   TEXT NOT NULL DEFAULT '',
+                random_seed    INTEGER NOT NULL DEFAULT 0,
+                created_utc    TEXT NOT NULL,
+                started_utc    TEXT,
+                finished_utc   TEXT,
+                winner_player_id TEXT
+            ) WITHOUT ROWID;
+
+            CREATE INDEX ix_tournaments_created ON tournaments (created_utc DESC);
+
+            -- display_name is a snapshot, not a join: players rename themselves, and a
+            -- bracket that silently relabels a finished match no longer shows what happened.
+            CREATE TABLE tournament_participants (
+                tournament_id TEXT NOT NULL REFERENCES tournaments (tournament_id) ON DELETE CASCADE,
+                player_id     TEXT NOT NULL,
+                display_name  TEXT NOT NULL,
+                seed          INTEGER NOT NULL DEFAULT 0,
+                status        INTEGER NOT NULL DEFAULT 0,
+                joined_utc    TEXT NOT NULL,
+                PRIMARY KEY (tournament_id, player_id)
+            ) WITHOUT ROWID;
+
+            -- The hashes are what make "the chart that was played" a checkable claim.
+            CREATE TABLE tournament_songs (
+                tournament_id   TEXT NOT NULL REFERENCES tournaments (tournament_id) ON DELETE CASCADE,
+                chart_id        TEXT NOT NULL,
+                title           TEXT NOT NULL DEFAULT '',
+                difficulty_name TEXT NOT NULL DEFAULT '',
+                level           REAL NOT NULL DEFAULT 0,
+                chart_hash      TEXT NOT NULL DEFAULT '',
+                audio_hash      TEXT NOT NULL DEFAULT '',
+                category        TEXT NOT NULL DEFAULT '',
+                PRIMARY KEY (tournament_id, chart_id)
+            ) WITHOUT ROWID;
+
+            CREATE TABLE tournament_rounds (
+                round_id      TEXT PRIMARY KEY,
+                tournament_id TEXT NOT NULL REFERENCES tournaments (tournament_id) ON DELETE CASCADE,
+                round_index   INTEGER NOT NULL,
+                name          TEXT NOT NULL,
+                side          INTEGER NOT NULL DEFAULT 0,
+                is_complete   INTEGER NOT NULL DEFAULT 0
+            ) WITHOUT ROWID;
+
+            CREATE INDEX ix_rounds_tournament ON tournament_rounds (tournament_id, round_index);
+
+            CREATE TABLE tournament_matches (
+                match_id        TEXT PRIMARY KEY,
+                tournament_id   TEXT NOT NULL REFERENCES tournaments (tournament_id) ON DELETE CASCADE,
+                round_id        TEXT NOT NULL REFERENCES tournament_rounds (round_id) ON DELETE CASCADE,
+                slot            INTEGER NOT NULL,
+                player1_id      TEXT,
+                player2_id      TEXT,
+                status          INTEGER NOT NULL DEFAULT 0,
+                winner_player_id TEXT,
+                chart_ids       TEXT NOT NULL DEFAULT '',
+                best_of         INTEGER NOT NULL DEFAULT 1,
+                started_utc     TEXT,
+                completed_utc   TEXT
+            ) WITHOUT ROWID;
+
+            CREATE INDEX ix_matches_tournament ON tournament_matches (tournament_id, round_id, slot);
+
+            -- Everything needed to check a result later travels with it: which chart, which
+            -- build, which rules, and the replay. A number in a table proves nothing alone.
+            CREATE TABLE tournament_match_results (
+                result_id     TEXT PRIMARY KEY,
+                match_id      TEXT NOT NULL REFERENCES tournament_matches (match_id) ON DELETE CASCADE,
+                tournament_id TEXT NOT NULL REFERENCES tournaments (tournament_id) ON DELETE CASCADE,
+                player_id     TEXT NOT NULL,
+                chart_id      TEXT NOT NULL,
+                game_index    INTEGER NOT NULL DEFAULT 0,
+                score         INTEGER NOT NULL DEFAULT 0,
+                accuracy      REAL NOT NULL DEFAULT 0,
+                max_combo     INTEGER NOT NULL DEFAULT 0,
+                perfect       INTEGER NOT NULL DEFAULT 0,
+                great         INTEGER NOT NULL DEFAULT 0,
+                good          INTEGER NOT NULL DEFAULT 0,
+                bad           INTEGER NOT NULL DEFAULT 0,
+                miss          INTEGER NOT NULL DEFAULT 0,
+                pp            REAL NOT NULL DEFAULT 0,
+                full_combo    INTEGER NOT NULL DEFAULT 0,
+                all_perfect   INTEGER NOT NULL DEFAULT 0,
+                replay_id     TEXT,
+                chart_hash    TEXT NOT NULL DEFAULT '',
+                game_version  TEXT NOT NULL DEFAULT '',
+                rule_hash     TEXT NOT NULL DEFAULT '',
+                submitted_utc TEXT NOT NULL,
+                confirmed_utc TEXT
+            ) WITHOUT ROWID;
+
+            CREATE INDEX ix_results_match ON tournament_match_results (match_id, game_index);
+            CREATE INDEX ix_results_tournament ON tournament_match_results (tournament_id, player_id);
+
+            -- Append-only. The difference between a result and a result somebody can check.
+            CREATE TABLE tournament_events (
+                event_id      TEXT PRIMARY KEY,
+                tournament_id TEXT NOT NULL REFERENCES tournaments (tournament_id) ON DELETE CASCADE,
+                type          TEXT NOT NULL,
+                actor_player_id TEXT,
+                payload       TEXT NOT NULL DEFAULT '{}',
+                timestamp_utc TEXT NOT NULL
+            ) WITHOUT ROWID;
+
+            CREATE INDEX ix_events_tournament ON tournament_events (tournament_id, timestamp_utc);
+            """),
     };
 }
