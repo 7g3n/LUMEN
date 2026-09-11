@@ -177,11 +177,32 @@ the validator's error/warning split is pinned case by case; a real v1 document m
 loads and round-trips. The existing database migrated v4 → v5 in place and the v1 practice
 chart still loads.
 
-### Phase 8 — Replay & achievements (§41, §64)
-Replay recording (input + judgement stream + seed); deterministic playback; list + viewer;
-optional export. Achievement engine with the spec's local set; unlock UI; on profile.
-**Exit:** replay reproduces identical score & judgements (determinism test);
-achievements unlock at correct thresholds; replays survive restart.
+### Phase 8 — Replay & achievements (§41, §64) ✅
+Core: a replay stores the lane events and nothing else. `GameplaySession` is a pure
+function of (chart, ordered events), so the input *is* the play — storing the judgements
+too would be a second copy of something derivable, and the two could then disagree. What
+is stored alongside is the result the recording produced, so playback can be checked
+against it and the list can show a score without re-simulating. `ReplayRecorder` appends
+(one list add per input, so recording is always on — a replay you had to ask for in
+advance is never there for the run that mattered) and `ReplayPlayer` drains by song time
+through the same path a live input source takes. `ReplayJson` stores events as three
+parallel arrays: a long play is tens of thousands of them, and an array of objects is
+mostly punctuation.
+Achievements are expressed as "this statistic has reached this number" rather than as
+events fired in the moment, so one added in a later release unlocks retroactively for a
+player who already earned it instead of being unreachable.
+Data: schema v6 `replays` (metadata in SQLite, the event stream as a file — the list never
+needs the events) and `achievements` (unlocks only; progress is recomputed, so there is no
+second copy to drift). Orphaned replay rows are pruned at startup.
+Game: every finished play records and saves a replay; `ReplaysScreen` lists and watches
+them, refusing a chart that has since been edited because the recorded input would land on
+notes that are no longer there; the profile shows unlocked achievements and how close the
+next ones are.
+**Exit met:** 53 new tests (448 total, green). A deliberately imperfect play replays to an
+identical score, accuracy, combo and judgement stream, and to the same result whether
+watched at 30, 60 or 240 fps; a serialised replay still reproduces it; replays and
+achievements survive a close-and-reopen of the database. `--autoplay` end to end wrote a
+96-event replay and unlocked exactly the five achievements it had earned.
 
 ### Phase 9 — Backup / restore / data migration (§12–13, §74)
 Auto-backup on schedule + on version change; manual Create/Restore Backup.

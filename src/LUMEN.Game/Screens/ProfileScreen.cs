@@ -23,6 +23,10 @@ public sealed class ProfileScreen : Screen
     private PlayerStatistics _stats = PlayerStatistics.Empty;
     private SkillAxes _skill = SkillAxes.Zero;
     private IReadOnlyList<BestPerformance> _best = System.Array.Empty<BestPerformance>();
+    private IReadOnlyList<Lumen.Core.Achievements.AchievementState> _achievements =
+        System.Array.Empty<Lumen.Core.Achievements.AchievementState>();
+    private Lumen.Core.Achievements.AchievementStats _achievementStats =
+        Lumen.Core.Achievements.AchievementStats.Empty;
 
     public override void OnEnter() => Load();
 
@@ -35,6 +39,9 @@ public sealed class ProfileScreen : Screen
         _stats = Context.Scores.GetStatistics(profile.PlayerId);
         _skill = Context.Scores.GetSkillProfile(profile.PlayerId);
         _best = Context.Scores.GetBestPerformances(profile.PlayerId, 5);
+        _achievements = Context.Achievements.All(profile.PlayerId);
+        // Read once here, not once per locked achievement per frame.
+        _achievementStats = Context.Achievements.StatsFor(profile.PlayerId);
     }
 
     public override void Update(InputFrame input)
@@ -104,8 +111,8 @@ public sealed class ProfileScreen : Screen
             new Rectangle(column.X, y, column.Width, 18), Theme.TextFaint);
         y += 40;
 
-        DrawStats(ui, new Rectangle(column.X, y, column.Width, 150));
-        y += 172;
+        DrawStats(ui, new Rectangle(column.X, y, column.Width, 132));
+        y += 148;
 
         if (_stats.PlayCount == 0)
         {
@@ -116,14 +123,21 @@ public sealed class ProfileScreen : Screen
         else
         {
             int half = (column.Width - 24) / 2;
-            DrawBestPerformances(ui, new Rectangle(column.X, y, half, 150));
-            DrawSkill(ui, new Rectangle(column.X + half + 24, y, half, 150));
-            y += 168;
+            DrawBestPerformances(ui, new Rectangle(column.X, y, half, 132));
+            DrawSkill(ui, new Rectangle(column.X + half + 24, y, half, 132));
+            y += 140;
         }
+
+        // The rename control is anchored to the bottom of the column and the achievements
+        // take whatever is left above it, so neither can push the other off the screen
+        // however tall the window is.
+        int controlsTop = column.Bottom - 56;
+        DrawAchievements(ui, new Rectangle(column.X, y, column.Width, Math.Max(0, controlsTop - y - 12)));
+        y = controlsTop;
 
         if (_renaming)
         {
-            DrawRename(ui, new Rectangle(column.X, y, Math.Min(420, column.Width), 56));
+            DrawRename(ui, new Rectangle(column.X, y, Math.Min(420, column.Width), 46));
         }
         else
         {
@@ -182,7 +196,7 @@ public sealed class ProfileScreen : Screen
             ui.Text(ui.Body(Theme.Label), Truncate(b.Chart.Title, 18),
                 new Rectangle(area.X + 28, y, area.Width - 90, 24), Theme.Text);
             ui.Text(ui.Mono(Theme.Label), $"{b.Pp:0}pp", row, Theme.Accent, TextAlign.Right);
-            y += 24;
+            y += 22;
             rank++;
         }
     }
@@ -210,7 +224,50 @@ public sealed class ProfileScreen : Screen
             ui.FillRect(new Rectangle(barX, y + 8, (int)(barW * Math.Clamp(value / 20.0, 0, 1)), 3), Theme.Accent);
             ui.Text(ui.Mono(Theme.Label), value.ToString("0.0"),
                 new Rectangle(area.X, y, area.Width, 20), Theme.Text, TextAlign.Right);
-            y += 24;
+            y += 22;
+        }
+    }
+
+    /// <summary>
+    /// Unlocked achievements first, then whatever the player is closest to earning — the
+    /// list is there to suggest what to do next, not to be an alphabet (spec §64).
+    /// </summary>
+    private void DrawAchievements(UiRenderer ui, Rectangle area)
+    {
+        int unlocked = _achievements.Count(a => a.Unlocked);
+        ui.Text(ui.Mono(Theme.Label), $"ACHIEVEMENTS   {unlocked} / {_achievements.Count}",
+            new Rectangle(area.X, area.Y, area.Width, 16), Theme.Accent);
+
+        int y = area.Y + 24;
+        int half = (area.Width - 24) / 2;
+
+        int rows = Math.Max(0, (area.Height - 24) / 26);
+        int shown = Math.Min(rows * 2, _achievements.Count);
+
+        for (int i = 0; i < shown; i++)
+        {
+            Lumen.Core.Achievements.AchievementState a = _achievements[i];
+            int column = i % 2;
+            int rowY = y + i / 2 * 26;
+            var row = new Rectangle(area.X + column * (half + 24), rowY, half, 22);
+
+            ui.Text(ui.Body(Theme.Label), Truncate(a.Definition.Name, 20),
+                new Rectangle(row.X, row.Y, row.Width - 70, row.Height),
+                a.Unlocked ? Theme.Text : Theme.TextFaint);
+
+            if (a.Unlocked)
+            {
+                ui.Text(ui.Mono(Theme.Label), "UNLOCKED",
+                    row, Theme.Accent, TextAlign.Right);
+            }
+            else
+            {
+                // Progress rather than a blank: a locked achievement should say how close.
+                double fraction = a.Definition.Fraction(_achievementStats);
+                ui.FillRect(new Rectangle(row.Right - 64, row.Y + 10, 60, 3), Theme.Border);
+                ui.FillRect(new Rectangle(row.Right - 64, row.Y + 10, (int)(60 * fraction), 3),
+                    Theme.AccentSoft);
+            }
         }
     }
 

@@ -3,6 +3,7 @@ using System.IO;
 using Lumen.Core;
 using Lumen.Core.Diagnostics;
 using Lumen.Data;
+using Lumen.Data.Achievements;
 using Lumen.Data.Library;
 using Lumen.Data.Packages;
 using Lumen.Data.Repositories;
@@ -98,16 +99,30 @@ internal sealed class LumenGame : Microsoft.Xna.Framework.Game
 
         Core.Balance.BalanceConfig balance = Core.Balance.BalanceConfigFile.LoadOrCreate(_paths.Settings);
 
+        var scores = new ScoreRepository(_db, balance);
+        var replays = new ReplayRepository(_db, _paths.Replays);
+        var achievements = new AchievementRepository(_db);
+
+        // A replay whose file has gone is one the player can see and cannot watch.
+        int orphaned = replays.PruneMissing();
+        if (orphaned > 0)
+        {
+            Log.Info($"dropped {orphaned} replay row(s) with no file");
+        }
+
         _context = new GameContext
         {
             Paths = _paths,
             Database = _db,
             Profiles = profiles,
             Settings = settings,
-            Scores = new ScoreRepository(_db, balance),
+            Scores = scores,
             Library = library,
             Packages = new PackageService(_paths, library),
             ChartVersions = new ChartVersionRepository(_db),
+            Replays = replays,
+            Achievements = new AchievementService(
+                scores, profiles, library.Charts, achievements),
             AppMeta = appMeta,
             Display = _display,
             Balance = balance,
@@ -189,7 +204,8 @@ internal sealed class LumenGame : Microsoft.Xna.Framework.Game
             ("4-settings", new SettingsScreen()),
             ("5-songselect", new SongSelectScreen()),
             ("6-editor", new Editor.EditorScreen(test.ChartPath)),
-            ("7-gameplay", new Screens.GameplayScreen(test.ChartPath, test.AudioPath)),
+            ("7-replays", new ReplaysScreen()),
+            ("8-gameplay", new Screens.GameplayScreen(test.ChartPath, test.AudioPath)),
         };
 
         using var target = new RenderTarget2D(GraphicsDevice, _display.Width, _display.Height);

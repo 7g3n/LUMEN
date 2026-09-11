@@ -372,7 +372,7 @@ public sealed class ScoreRepository : IScoreRepository
                    COALESCE(SUM(score), 0), COALESCE(AVG(accuracy), 0), COALESCE(MAX(accuracy), 0),
                    COALESCE(SUM(perfect), 0), COALESCE(SUM(great), 0), COALESCE(SUM(good), 0),
                    COALESCE(SUM(bad), 0), COALESCE(SUM(miss), 0), COUNT(DISTINCT chart_key),
-                   MIN(played_utc), MAX(played_utc)
+                   MIN(played_utc), MAX(played_utc), COALESCE(MAX(max_combo), 0)
             FROM scores WHERE player_id = $p;
             """;
         cmd.Parameters.AddWithValue("$p", playerId.ToString("D"));
@@ -399,6 +399,7 @@ public sealed class ScoreRepository : IScoreRepository
             DistinctCharts = r.GetInt32(11),
             FirstPlayUtc = r.IsDBNull(12) ? null : ParseUtc(r.GetString(12)),
             LastPlayUtc = r.IsDBNull(13) ? null : ParseUtc(r.GetString(13)),
+            HighestCombo = r.GetInt32(14),
         };
     }
 

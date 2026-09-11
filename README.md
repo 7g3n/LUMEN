@@ -7,16 +7,17 @@ and a built-in chart editor. Play · compete · create — in one `LUMEN.exe`.
 
 ## Status
 
-**Phase 7 — Chart system: complete.** Charts and packages are a real format now. A `.lumen`
-file carries the song, its audio and every difficulty with a checksum on each entry —
-export one, drop it on someone else's window, and they are playing it. Charts carry a
-stable id so the editor can keep a revision history, the validator separates what would
-genuinely break for whoever receives the chart from what the author may simply have meant,
-and a chart written by any older build still opens. 395 unit tests green.
+**Phase 8 — Replays and achievements: complete.** Every play you finish is recorded, with
+no switch to remember to flip — a replay you had to ask for in advance is never there for
+the run that turned out to matter. Watching one feeds your own inputs back through the
+real game, so it reproduces the play exactly rather than approximately. Achievements
+unlock from your statistics rather than from the moment they happened, which means one
+added later still unlocks for what you have already done. 448 unit tests green.
 
-Prior phases: the chart editor with total undo, a beat grid that follows tempo changes and
-Test Play (Phase 6); the song library, Song Select with per-chart bests and local rankings,
-and favourites (Phase 5); Rating, PP, per-play performances and statistics, with score
+Prior phases: the chart and package formats with validation, revision history and format
+migration (Phase 7); the chart editor with total undo, a beat grid that follows tempo
+changes and Test Play (Phase 6); the song library, Song Select with per-chart bests and
+local rankings, and favourites (Phase 5); Rating, PP, per-play performances and statistics, with score
 saving as one all-or-nothing SQLite transaction (Phase 4); Tap + Hold gameplay with a
 deterministic engine and a NAudio/WASAPI audio clock (Phase 3); player setup, profiles and
 the screen/UI toolkit (Phase 2); window, clock, logging, crash guard, SQLite migrations

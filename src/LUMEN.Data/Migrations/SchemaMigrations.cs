@@ -158,5 +158,38 @@ public static class SchemaMigrations
 
             CREATE INDEX ix_chart_versions_saved ON chart_versions (chart_id, saved_utc DESC);
             """),
+
+        Migration.Sql(6, "replays_and_achievements",
+            """
+            CREATE TABLE replays (
+                replay_id        TEXT PRIMARY KEY,
+                player_id        TEXT NOT NULL REFERENCES profiles (player_id) ON DELETE CASCADE,
+                score_id         TEXT,
+                chart_key        TEXT NOT NULL,
+                chart_id         TEXT,
+                title            TEXT NOT NULL DEFAULT '',
+                artist           TEXT NOT NULL DEFAULT '',
+                difficulty_name  TEXT NOT NULL DEFAULT '',
+                difficulty_level REAL NOT NULL DEFAULT 0,
+                score            INTEGER NOT NULL DEFAULT 0,
+                accuracy         REAL NOT NULL DEFAULT 0,
+                max_combo        INTEGER NOT NULL DEFAULT 0,
+                grade            TEXT NOT NULL DEFAULT '',
+                full_combo       INTEGER NOT NULL DEFAULT 0,
+                event_count      INTEGER NOT NULL DEFAULT 0,
+                recorded_utc     TEXT NOT NULL,
+                file_name        TEXT NOT NULL
+            ) WITHOUT ROWID;
+
+            CREATE INDEX ix_replays_player ON replays (player_id, recorded_utc DESC);
+            CREATE INDEX ix_replays_chart  ON replays (chart_key, score DESC);
+
+            CREATE TABLE achievements (
+                player_id      TEXT NOT NULL REFERENCES profiles (player_id) ON DELETE CASCADE,
+                achievement_id TEXT NOT NULL,
+                unlocked_utc   TEXT NOT NULL,
+                PRIMARY KEY (player_id, achievement_id)
+            ) WITHOUT ROWID;
+            """),
     };
 }

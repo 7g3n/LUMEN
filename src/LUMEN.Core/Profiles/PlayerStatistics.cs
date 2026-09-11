@@ -15,6 +15,9 @@ public sealed record PlayerStatistics
     public int TotalBad { get; init; }
     public int TotalMiss { get; init; }
     public int DistinctCharts { get; init; }
+
+    /// <summary>Longest combo reached in any single play (spec §64 milestones).</summary>
+    public int HighestCombo { get; init; }
     public DateTime? FirstPlayUtc { get; init; }
     public DateTime? LastPlayUtc { get; init; }
 

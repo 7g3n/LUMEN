@@ -42,7 +42,7 @@ public sealed class MainMenuScreen : Screen
                 Manager.Push(new ProfileScreen());
                 break;
             case "REPLAYS":
-                Manager.Push(new PlaceholderScreen("Replays", "Replay recording and playback arrive in Phase 8."));
+                Manager.Push(new ReplaysScreen());
                 break;
             case "SETTINGS":
                 Manager.Push(new SettingsScreen());

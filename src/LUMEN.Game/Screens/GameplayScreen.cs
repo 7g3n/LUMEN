@@ -2,7 +2,9 @@ using Lumen.Audio;
 using Lumen.Core;
 using Lumen.Core.Charts;
 using Lumen.Core.Diagnostics;
+using Lumen.Core.Achievements;
 using Lumen.Core.Gameplay;
+using Lumen.Core.Replays;
 using Lumen.Core.Settings;
 using Lumen.Game.Content;
 using Lumen.Game.Engine;
@@ -28,6 +30,10 @@ public sealed class GameplayScreen : Screen
     private readonly Action<PlayResult>? _onComplete;
 
     private Queue<LaneEvent>? _autoEvents;
+    private readonly ReplayRecorder _recorder = new();
+    private readonly Replay? _watching;
+    private ReplayPlayer? _playback;
+    private IReadOnlyList<AchievementDefinition> _unlocked = Array.Empty<AchievementDefinition>();
     private Phase _phase = Phase.Loading;
     private AudioEngine _audio = null!;
     private IAudioTrack _track = null!;
@@ -44,13 +50,18 @@ public sealed class GameplayScreen : Screen
     private MenuList _pauseMenu = new("RESUME", "RESTART", "QUIT");
 
     public GameplayScreen(string chartPath, string? audioPath = null,
-                          bool autoPlay = false, Action<PlayResult>? onComplete = null)
+                          bool autoPlay = false, Action<PlayResult>? onComplete = null,
+                          Replay? watch = null)
     {
         _chartPath = chartPath;
         _audioPathOverride = audioPath;
         _autoPlay = autoPlay;
         _onComplete = onComplete;
+        _watching = watch;
     }
+
+    /// <summary>True while a recorded play is being watched rather than played (§41).</summary>
+    private bool IsWatching => _watching is not null;
 
     public override Color BackgroundColor => Theme.Ground;
 
@@ -68,6 +79,13 @@ public sealed class GameplayScreen : Screen
             _track = _audio.LoadTrack(audioPath, musicVol);
 
             _inputOffsetMs = Context.Settings.GetDouble(Context.Session.ActivePlayerId, "timing.inputOffsetMs", 0);
+
+            // Watching replays the recorded stream through the same path a live play
+            // takes, so the session cannot tell the difference.
+            if (_watching is not null)
+            {
+                _playback = new ReplayPlayer(_watching);
+            }
             double audioOffsetMs = Context.Settings.GetDouble(Context.Session.ActivePlayerId, "timing.audioOffsetMs", 0);
 
             _conductor = new Conductor(_track, new TempoMap(_chart.BpmPoints), audioOffsetMs);
@@ -131,9 +149,17 @@ public sealed class GameplayScreen : Screen
         _conductor.Tick();
         double now = _conductor.SongTimeMs;
 
-        IReadOnlyList<LaneEvent> events = _autoEvents is not null
-            ? DrainAuto(now)
+        IReadOnlyList<LaneEvent> events =
+            _playback is not null ? _playback.Drain(now)
+            : _autoEvents is not null ? DrainAuto(now)
             : _input.Poll(input.Keyboard, now - _inputOffsetMs);
+
+        // Recorded before judging, so the stream is exactly what the session was given.
+        if (!IsWatching && events.Count > 0)
+        {
+            _recorder.Record(events);
+        }
+
         _session.Update(now, events);
 
         if (input.Pressed(Keys.Escape))
@@ -192,6 +218,12 @@ public sealed class GameplayScreen : Screen
 
     private Core.Scores.ScoreSaveOutcome? SaveResult(PlayResult result)
     {
+        // Watching a replay is not playing it: nothing is scored, recorded or unlocked.
+        if (IsWatching)
+        {
+            return null;
+        }
+
         try
         {
             Guid playerId = Context.Session.ActivePlayerId;
@@ -200,12 +232,51 @@ public sealed class GameplayScreen : Screen
             Context.Session.Refresh();
             Log.Info($"saved: +{outcome.PpBreakdown.FinalPp:0.0}pp  rating {outcome.Before.Rating:0.00}->{outcome.After.Rating:0.00}" +
                      $"{(outcome.IsPersonalBest ? " PB" : "")}{(outcome.IsPpRecord ? " PPREC" : "")}");
+
+            SaveReplay(playerId, outcome.Score.ScoreId);
+
+            // Evaluated after the score is in, so the statistics it reads include this play.
+            _unlocked = Context.Achievements.Evaluate(playerId);
+            foreach (AchievementDefinition unlocked in _unlocked)
+            {
+                Log.Info($"achievement unlocked: {unlocked.Name}");
+            }
+
             return outcome;
         }
         catch (Exception ex)
         {
             Log.Error("failed to save score", ex);
             return null;
+        }
+    }
+
+    /// <summary>
+    /// Stores the recording. A failure here is logged and swallowed: the score is already
+    /// safe, and losing a replay is not worth turning a finished play into an error.
+    /// </summary>
+    private void SaveReplay(Guid playerId, Guid scoreId)
+    {
+        if (_recorder.Count == 0)
+        {
+            return;
+        }
+
+        try
+        {
+            Replay replay = _recorder.Build(
+                playerId,
+                Context.Session.ActiveProfile?.DisplayName ?? "",
+                _chart, _session.Score,
+                _inputOffsetMs,
+                Context.Settings.GetDouble(playerId, "timing.audioOffsetMs", 0));
+
+            Context.Replays.Save(replay, scoreId);
+            Log.Info($"replay saved: {replay.EventCount} events");
+        }
+        catch (Exception ex)
+        {
+            Log.Warn("replay could not be saved", ex);
         }
     }
 
