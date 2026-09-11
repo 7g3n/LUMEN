@@ -10,16 +10,33 @@ public sealed class MainMenuScreen : Screen
 {
     private static readonly string[] Actions =
     {
-        "PLAY", "SONG SELECT", "EDITOR", "PROFILE", "REPLAYS", "SETTINGS", "EXIT",
+        "PLAY", "SONG SELECT", "EDITOR", "PROFILE", "REPLAYS", "HOW TO PLAY", "SETTINGS", "EXIT",
     };
 
     private readonly MenuList _menu = new(Actions);
     private int _lastWidth = 1280;
     private int _lastMenuTop = 320;
 
-    public override void OnEnter() => Context.Session.Refresh();
+    /// <summary>
+    /// The name and rating under the wordmark. Read when the screen appears rather than
+    /// while drawing it: the summary is a database query, and asking for it once a frame
+    /// is a few hundred queries a second for a number that changes once a play.
+    /// </summary>
+    private ProfileSummary _summary = ProfileSummary.Empty(Placeholder());
 
-    public override void OnReveal() => Context.Session.Refresh();
+    public override void OnEnter() => Refresh();
+
+    public override void OnReveal() => Refresh();
+
+    private void Refresh()
+    {
+        Context.Session.Refresh();
+
+        Profile? profile = Context.Session.ActiveProfile;
+        _summary = profile is not null
+            ? Context.Scores.GetSummary(profile)
+            : ProfileSummary.Empty(Placeholder());
+    }
 
     public override void Update(InputFrame input)
     {
@@ -43,6 +60,9 @@ public sealed class MainMenuScreen : Screen
                 break;
             case "REPLAYS":
                 Manager.Push(new ReplaysScreen());
+                break;
+            case "HOW TO PLAY":
+                Manager.Push(new TutorialScreen(onFinished: () => Manager.Pop()));
                 break;
             case "SETTINGS":
                 Manager.Push(new SettingsScreen());
@@ -93,10 +113,7 @@ public sealed class MainMenuScreen : Screen
         ui.Text(ui.Display(Theme.DisplayM), name,
             new Rectangle(0, top + 78, ui.Width, 28), Theme.Text, TextAlign.Center);
 
-        ProfileSummary summary = profile is not null
-            ? Context.Scores.GetSummary(profile)
-            : ProfileSummary.Empty(Placeholder());
-        string rating = summary.PlayCount == 0 ? "Rating —" : $"Rating {summary.Rating:0.00}";
+        string rating = _summary.PlayCount == 0 ? "Rating —" : $"Rating {_summary.Rating:0.00}";
         ui.Text(ui.Mono(Theme.Label), rating,
             new Rectangle(0, top + 110, ui.Width, 20), Theme.TextMuted, TextAlign.Center);
 

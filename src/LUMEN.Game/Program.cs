@@ -55,28 +55,45 @@ internal static class Program
         finally
         {
             db?.Dispose();
+
+            // The logger is about to be disposed by the `using`. Anything that runs after
+            // that — a process-exit handler, a finalizer — would be writing to a closed
+            // file, so it is pointed at the no-op logger first. FileLog survives being
+            // written to after disposal on its own account; this simply means the last
+            // lines of a shutdown go somewhere that is honestly nowhere.
+            Log.Current = NullLog.Instance;
         }
     }
 }
 
 /// <summary>Command-line switches. Real configuration lives in settings files.</summary>
-internal sealed record LaunchOptions(bool Smoke, bool CrashTest, string? CaptureDir, bool AutoPlay)
+/// <param name="AutoPlayChart">
+/// A chart to autoplay instead of the bundled practice track. Lets a chart be verified
+/// end to end without a person at the keyboard — the result and the frame-time figures
+/// are printed and the game exits — which is as useful to somebody who has just written
+/// a chart as it is to the release checks.
+/// </param>
+internal sealed record LaunchOptions(
+    bool Smoke, bool CrashTest, string? CaptureDir, bool AutoPlay, string? AutoPlayChart)
 {
     public static LaunchOptions Parse(string[] args)
     {
         bool Has(string name) => Array.Exists(args, a => a.Equals(name, StringComparison.OrdinalIgnoreCase));
 
-        string? captureDir = null;
-        int i = Array.FindIndex(args, a => a.Equals("--capture", StringComparison.OrdinalIgnoreCase));
-        if (i >= 0 && i + 1 < args.Length)
+        /// <summary>The argument after a switch, when it is not itself a switch.</summary>
+        string? ValueAfter(string name)
         {
-            captureDir = args[i + 1];
+            int at = Array.FindIndex(args, a => a.Equals(name, StringComparison.OrdinalIgnoreCase));
+            return at >= 0 && at + 1 < args.Length && !args[at + 1].StartsWith("--", StringComparison.Ordinal)
+                ? args[at + 1]
+                : null;
         }
 
         return new LaunchOptions(
             Smoke: Has("--smoke"),
             CrashTest: Has("--crashtest"),
-            CaptureDir: captureDir,
-            AutoPlay: Has("--autoplay"));
+            CaptureDir: ValueAfter("--capture"),
+            AutoPlay: Has("--autoplay"),
+            AutoPlayChart: ValueAfter("--autoplay"));
     }
 }

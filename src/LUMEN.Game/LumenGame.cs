@@ -46,6 +46,16 @@ internal sealed class LumenGame : Microsoft.Xna.Framework.Game
     private GameContext _context = null!;
 
     private double _frameMsSmoothed;
+    private string _overlayLine = "";
+    private double _overlayBuiltAt = double.NegativeInfinity;
+    private readonly FrameProfiler _profiler = new();
+
+    // One frame, in the parts that can be named: the whole span, the game's own work,
+    // the driver's present, and the limiter's deliberate wait. Recorded together at the
+    // end of the frame so the four numbers describe the same frame (§68).
+    private readonly System.Diagnostics.Stopwatch _frameWatch = new();
+    private double _workMs;
+    private double _waitMs;
     private (Exception ex, string report)? _fatal;
 
     public LumenGame(LumenPaths paths, LaunchOptions options, DisplayConfig display, Database db)
@@ -78,6 +88,8 @@ internal sealed class LumenGame : Microsoft.Xna.Framework.Game
 
         int refresh = DisplayInfo.GetPrimaryRefreshRate();
         _limiter.TargetFps = _display.FollowRefreshRate ? Math.Max(refresh, 60) : _display.FpsCap;
+        _profiler.SetBudget(FrameProfiler.BudgetForFps(
+            _limiter.TargetFps > 0 ? _limiter.TargetFps : Math.Max(refresh, 60)));
         Log.Info($"display {_display.Width}x{_display.Height} vsync={_display.Vsync} " +
                  $"cap={(_limiter.TargetFps == 0 ? "uncapped" : _limiter.TargetFps)} (monitor {refresh}Hz)");
 
@@ -139,6 +151,7 @@ internal sealed class LumenGame : Microsoft.Xna.Framework.Game
             Achievements = new AchievementService(
                 scores, profiles, library.Charts, achievements),
             Backups = backups,
+            Frames = _profiler,
             AppMeta = appMeta,
             Display = _display,
             Balance = balance,
@@ -146,6 +159,7 @@ internal sealed class LumenGame : Microsoft.Xna.Framework.Game
             RequestExit = Exit,
         };
 
+        _context.RefreshAccessibility();
         _screens = new ScreenManager(_context);
     }
 
@@ -155,6 +169,7 @@ internal sealed class LumenGame : Microsoft.Xna.Framework.Game
         _pixel = new Texture2D(GraphicsDevice, 1, 1);
         _pixel.SetData(new[] { Color.White });
         _fonts.Load(AppContext.BaseDirectory);
+        _fonts.Warm(_spriteBatch);
 
         _ui = new UiRenderer(GraphicsDevice, _spriteBatch, _pixel, _fonts);
         _input = new InputRouter(Window);
@@ -177,7 +192,13 @@ internal sealed class LumenGame : Microsoft.Xna.Framework.Game
             : new SetupScreen());
     }
 
-    /// <summary>Plays the practice chart with perfect input end to end, then exits (verification).</summary>
+    /// <summary>
+    /// A chart given to <c>--autoplay</c> may be any length, so the watchdog allows for a
+    /// long one; it is there to stop a hung play from hanging a script, not to time it.
+    /// </summary>
+    private double AutoPlayTimeoutSeconds => _options.AutoPlayChart is null ? 120 : 900;
+
+    /// <summary>Plays a chart with perfect input end to end, then exits (verification).</summary>
     private void StartAutoPlay()
     {
         if (!_context.Session.HasProfile)
@@ -185,9 +206,32 @@ internal sealed class LumenGame : Microsoft.Xna.Framework.Game
             _context.Session.SetActive(_context.Profiles.Create("Autoplay"));
         }
 
-        Lumen.Game.Content.TestContent.Installed test = Lumen.Game.Content.TestContent.EnsureInstalled(_paths);
+        // A chart given on the command line is played as-is, with its audio resolved the
+        // normal way; otherwise the bundled practice track, which every install has.
+        string chartPath;
+        string? audioPath = null;
+
+        if (_options.AutoPlayChart is { Length: > 0 } requested)
+        {
+            chartPath = Path.GetFullPath(requested);
+            if (!File.Exists(chartPath))
+            {
+                Console.WriteLine($"autoplay: no chart at {chartPath}");
+                Log.Error($"autoplay: no chart at {chartPath}");
+                Environment.Exit(2);
+            }
+        }
+        else
+        {
+            Lumen.Game.Content.TestContent.Installed test =
+                Lumen.Game.Content.TestContent.EnsureInstalled(_paths);
+            chartPath = test.ChartPath;
+            audioPath = test.AudioPath;
+        }
+
+        _profiler.Reset();
         _screens.SetRoot(new Screens.GameplayScreen(
-            test.ChartPath, test.AudioPath, autoPlay: true,
+            chartPath, audioPath, autoPlay: true,
             onComplete: result =>
             {
                 string line = $"autoplay done: {result.Accuracy:0.00}% {result.Score:N0} " +
@@ -195,6 +239,14 @@ internal sealed class LumenGame : Microsoft.Xna.Framework.Game
                               $"B{result.Bad}/M{result.Miss} FC={result.FullCombo} AP={result.AllPerfect}";
                 Log.Info(line);
                 Console.WriteLine(line);
+
+                string frames = "frames: " + _profiler.Summary();
+                Log.Info(frames);
+                Console.WriteLine(frames);
+
+                string worst = "worst frames: " + _profiler.StutterSummary();
+                Log.Info(worst);
+                Console.WriteLine(worst);
                 Exit();
             }));
     }
@@ -221,7 +273,9 @@ internal sealed class LumenGame : Microsoft.Xna.Framework.Game
             ("5-songselect", new SongSelectScreen()),
             ("6-editor", new Editor.EditorScreen(test.ChartPath)),
             ("7-replays", new ReplaysScreen()),
-            ("8-gameplay", new Screens.GameplayScreen(test.ChartPath, test.AudioPath)),
+            ("8-calibration", new CalibrationScreen()),
+            ("9-tutorial", new TutorialScreen(onFinished: () => { })),
+            ("10-gameplay", new Screens.GameplayScreen(test.ChartPath, test.AudioPath)),
         };
 
         using var target = new RenderTarget2D(GraphicsDevice, _display.Width, _display.Height);
@@ -261,6 +315,7 @@ internal sealed class LumenGame : Microsoft.Xna.Framework.Game
     protected override void Update(GameTime gameTime)
     {
         _clock.Advance();
+        _frameWatch.Restart();
         InputFrame input = _input.BeginFrame(_clock.DeltaSeconds);
 
         try
@@ -270,7 +325,7 @@ internal sealed class LumenGame : Microsoft.Xna.Framework.Game
                 throw new InvalidOperationException("Deliberate crash test (--crashtest).");
             }
 
-            if (_options.AutoPlay && _clock.TotalSeconds >= 120)
+            if (_options.AutoPlay && _clock.TotalSeconds >= AutoPlayTimeoutSeconds)
             {
                 Console.WriteLine("autoplay timed out");
                 Log.Error("autoplay timed out");
@@ -329,14 +384,42 @@ internal sealed class LumenGame : Microsoft.Xna.Framework.Game
         }
 
         base.Draw(gameTime);
+
+        _workMs = _frameWatch.Elapsed.TotalMilliseconds;
+        double beforeWait = _workMs;
         _limiter.Tick();
+        _waitMs = _frameWatch.Elapsed.TotalMilliseconds - beforeWait;
+    }
+
+    /// <summary>
+    /// The frame ends here, once the driver has taken the image. Recording at this point
+    /// — rather than at the top of the next frame — means the work, present and wait
+    /// figures all belong to the frame they are reported against.
+    /// </summary>
+    protected override void EndDraw()
+    {
+        double beforePresent = _frameWatch.Elapsed.TotalMilliseconds;
+        base.EndDraw();
+        double elapsed = _frameWatch.Elapsed.TotalMilliseconds;
+
+        _profiler.Record(elapsed, _workMs, elapsed - beforePresent, _waitMs);
     }
 
     private void DrawOverlay()
     {
         var font = _ui.Mono(Theme.Mono);
-        string line = $"{_clock.Fps,5:F0} fps  {_frameMsSmoothed,4:F1} ms  " +
-                      $"{_ui.Width}x{_ui.Height}  db v{_db.SchemaVersion}";
+
+        // Rebuilt a few times a second rather than every frame. An overlay that allocates
+        // a string per frame makes the very measurement it displays worse — and it is on
+        // by default, so it would have been doing that during every play.
+        if (_clock.TotalSeconds - _overlayBuiltAt >= 0.25)
+        {
+            _overlayBuiltAt = _clock.TotalSeconds;
+            _overlayLine = $"{_clock.Fps,5:F0} fps  {_frameMsSmoothed,4:F1} ms  " +
+                           $"{_ui.Width}x{_ui.Height}  db v{_db.SchemaVersion}";
+        }
+
+        string line = _overlayLine;
 
         _ui.Begin();
         var size = _ui.Measure(font, line);

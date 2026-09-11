@@ -9,29 +9,85 @@ namespace Lumen.Game.Ui;
 public static class Theme
 {
     // Surfaces
-    public static readonly Color Ground = Hex(0x090B10);
-    public static readonly Color Surface = Hex(0x12151D);
-    public static readonly Color SurfaceRaised = Hex(0x171B25);
-    public static readonly Color Border = Hex(0x262C39);
-    public static readonly Color BorderStrong = Hex(0x333B4A);
+    public static Color Ground { get; private set; } = Hex(0x090B10);
+    public static Color Surface { get; private set; } = Hex(0x12151D);
+    public static Color SurfaceRaised { get; private set; } = Hex(0x171B25);
+    public static Color Border { get; private set; } = Hex(0x262C39);
+    public static Color BorderStrong { get; private set; } = Hex(0x333B4A);
 
     // Text
-    public static readonly Color Text = Hex(0xE8EBF1);
-    public static readonly Color TextMuted = Hex(0x909AAB);
-    public static readonly Color TextFaint = Hex(0x606A7B);
+    public static Color Text { get; private set; } = Hex(0xE8EBF1);
+    public static Color TextMuted { get; private set; } = Hex(0x909AAB);
+    public static Color TextFaint { get; private set; } = Hex(0x606A7B);
 
     // Accent (luminous cyan)
-    public static readonly Color Accent = Hex(0x6FE0FF);
-    public static readonly Color AccentBright = Hex(0x8CE9FF);
-    public static readonly Color AccentSoft = Hex(0x0E2A34);
+    public static Color Accent { get; private set; } = Hex(0x6FE0FF);
+    public static Color AccentBright { get; private set; } = Hex(0x8CE9FF);
+    public static Color AccentSoft { get; private set; } = Hex(0x0E2A34);
 
     // Judgement / semantic
-    public static readonly Color Perfect = Hex(0xF3C459);
-    public static readonly Color Great = Hex(0x5AD1E6);
-    public static readonly Color Good = Hex(0x5FC98A);
-    public static readonly Color Bad = Hex(0xE19553);
-    public static readonly Color Miss = Hex(0xE56A60);
-    public static readonly Color Danger = Hex(0xE56A60);
+    public static Color Perfect { get; private set; } = Hex(0xF3C459);
+    public static Color Great { get; private set; } = Hex(0x5AD1E6);
+    public static Color Good { get; private set; } = Hex(0x5FC98A);
+    public static Color Bad { get; private set; } = Hex(0xE19553);
+    public static Color Miss { get; private set; } = Hex(0xE56A60);
+    public static Color Danger { get; private set; } = Hex(0xE56A60);
+
+    public static bool IsHighContrast { get; private set; }
+
+    /// <summary>
+    /// Switches the palette (spec §67).
+    ///
+    /// High contrast darkens the ground, brightens the text and strengthens every border,
+    /// and pushes the judgement colours apart — but it changes no measurement, so every
+    /// screen lays out identically in both modes and nothing has to be re-tested for
+    /// position. The palette is global because a theme is exactly the kind of thing that
+    /// is; every screen reads these each frame, so a change applies immediately.
+    /// </summary>
+    public static void Apply(bool highContrast)
+    {
+        IsHighContrast = highContrast;
+
+        if (!highContrast)
+        {
+            Ground = Hex(0x090B10);
+            Surface = Hex(0x12151D);
+            SurfaceRaised = Hex(0x171B25);
+            Border = Hex(0x262C39);
+            BorderStrong = Hex(0x333B4A);
+            Text = Hex(0xE8EBF1);
+            TextMuted = Hex(0x909AAB);
+            TextFaint = Hex(0x606A7B);
+            Accent = Hex(0x6FE0FF);
+            AccentBright = Hex(0x8CE9FF);
+            AccentSoft = Hex(0x0E2A34);
+            Perfect = Hex(0xF3C459);
+            Great = Hex(0x5AD1E6);
+            Good = Hex(0x5FC98A);
+            Bad = Hex(0xE19553);
+            Miss = Hex(0xE56A60);
+            Danger = Hex(0xE56A60);
+            return;
+        }
+
+        Ground = Hex(0x000000);
+        Surface = Hex(0x0B0E14);
+        SurfaceRaised = Hex(0x16202E);
+        Border = Hex(0x5A6577);
+        BorderStrong = Hex(0x93A1B5);
+        Text = Hex(0xFFFFFF);
+        TextMuted = Hex(0xD4DBE6);
+        TextFaint = Hex(0xA7B1C0);
+        Accent = Hex(0x7FE9FF);
+        AccentBright = Hex(0xBFF4FF);
+        AccentSoft = Hex(0x10384A);
+        Perfect = Hex(0xFFD766);
+        Great = Hex(0x7FE3FF);
+        Good = Hex(0x7BF0A8);
+        Bad = Hex(0xFFAE68);
+        Miss = Hex(0xFF8178);
+        Danger = Hex(0xFF8178);
+    }
 
     // Type scale (px)
     public const float DisplayXl = 52f;

@@ -19,6 +19,16 @@ public sealed class GameplaySession
 
     private int _sweepCursor; // notes before this are all resolved
 
+    /// <summary>
+    /// How many notes have reached <see cref="NoteStatus.Done"/>.
+    ///
+    /// Counted as they resolve rather than recounted on demand: the screen asks whether
+    /// the play is finished on every frame, and scanning every note to answer is work
+    /// that grows with the length of the chart — exactly backwards for a measurement
+    /// taken 240 times a second.
+    /// </summary>
+    private int _resolved;
+
     public GameplaySession(Chart chart, BalanceConfig? balance = null)
     {
         _balance = balance ?? BalanceConfig.Default;
@@ -43,7 +53,7 @@ public sealed class GameplaySession
 
     public double SongTimeMs { get; private set; }
 
-    public bool AllResolved => _notes.All(n => n.Status == NoteStatus.Done);
+    public bool AllResolved => _resolved >= _notes.Count;
 
     public event Action<JudgementEvent>? Judged;
 
@@ -128,7 +138,7 @@ public sealed class GameplaySession
         }
         else
         {
-            target.Status = NoteStatus.Done;
+            MarkDone(target);
             if (target.IsHold)
             {
                 // Head missed outright -> the tail is lost too.
@@ -193,7 +203,7 @@ public sealed class GameplaySession
     private void ResolveHeadMiss(NoteObject note)
     {
         note.HeadJudgement = Judgement.Miss;
-        note.Status = NoteStatus.Done;
+        MarkDone(note);
         Score.Register(Judgement.Miss);
         Emit(note, Judgement.Miss, isTail: false, double.NaN);
 
@@ -208,17 +218,32 @@ public sealed class GameplaySession
         note.TailJudgement = tail;
         if (!alreadyDone)
         {
-            note.Status = NoteStatus.Done;
+            MarkDone(note);
         }
 
         Score.Register(tail);
         Emit(note, tail, isTail: true, errorMs);
     }
 
+    /// <summary>The single door to <see cref="NoteStatus.Done"/>, so the count cannot drift.</summary>
+    private void MarkDone(NoteObject note)
+    {
+        if (note.Status == NoteStatus.Done)
+        {
+            return;
+        }
+
+        note.Status = NoteStatus.Done;
+        _resolved++;
+    }
+
     private NoteObject? EarliestPending(int lane)
     {
-        foreach (NoteObject note in _notes)
+        // Everything before the sweep cursor is resolved, and notes are time-sorted, so
+        // the search starts there rather than at the top of the chart on every press.
+        for (int i = _sweepCursor; i < _notes.Count; i++)
         {
+            NoteObject note = _notes[i];
             if (note.Lane == lane && note.Status == NoteStatus.Pending)
             {
                 return note;

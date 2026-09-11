@@ -22,6 +22,7 @@ public sealed class FrameLimiter
 
     public FrameLimiter(int targetFps) => TargetFps = targetFps;
 
+
     /// <summary>Call once per frame, after Draw/Present.</summary>
     public void Tick()
     {
@@ -35,8 +36,14 @@ public sealed class FrameLimiter
 
         if (_nextFrameSeconds < now - frame)
         {
-            // Fell far behind (breakpoint, stall); resync instead of racing to catch up.
-            _nextFrameSeconds = now + frame;
+            // Fell far behind (a load, a breakpoint, a stall in the driver); resync to now
+            // instead of racing to catch up.
+            //
+            // To *now*, not to a frame from now: the next Tick adds a frame of its own, and
+            // setting one here as well put the schedule two frames out. The symptom was a
+            // second late frame arriving two frames after every hitch — the game waiting
+            // out a stall it had already recovered from.
+            _nextFrameSeconds = now;
             return;
         }
 

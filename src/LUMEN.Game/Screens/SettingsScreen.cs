@@ -105,6 +105,22 @@ public sealed class SettingsScreen : Screen
             Set = v => { d.ShowPerfOverlay = v; d.Save(Context.Paths.Settings); },
         });
 
+        _rows.Add(new SectionRow { Label = "Accessibility" });
+        _rows.Add(A11yToggle("Reduced Motion", SettingKeys.ReducedMotion, false,
+            "Animations finish instantly."));
+        _rows.Add(A11yToggle("High Contrast", SettingKeys.HighContrast, false,
+            "Brighter text and borders. Layout is unchanged."));
+        _rows.Add(A11yToggle("Judgement Shapes", SettingKeys.ShapeCues, false,
+            "Adds a shape to each judgement, so colour is never the only cue."));
+        _rows.Add(A11yToggle("Show Judgement", SettingKeys.ShowJudgement, true, null));
+        _rows.Add(A11yToggle("Show Combo", SettingKeys.ShowCombo, true, null));
+        _rows.Add(new ActionRow
+        {
+            Label = "Timing Calibration",
+            ActionText = "CALIBRATE",
+            OnActivate = () => Manager.Push(new CalibrationScreen()),
+        });
+
         _rows.Add(new SectionRow { Label = "Data" });
         _rows.Add(new ActionRow
         {
@@ -148,6 +164,29 @@ public sealed class SettingsScreen : Screen
         }
 
         _selected = FirstInteractive(0, 1);
+    }
+
+    /// <summary>
+    /// An accessibility toggle. Every one of them takes effect immediately rather than on
+    /// restart — a setting a player has to relaunch to evaluate is one they will give up
+    /// on before they find the one they needed.
+    /// </summary>
+    private ToggleRow A11yToggle(string label, string key, bool fallback, string? note)
+    {
+        ISettingsRepository settings = Context.Settings;
+        Guid id = Context.Session.ActivePlayerId;
+
+        return new ToggleRow
+        {
+            Label = label,
+            Note = note,
+            Get = () => settings.GetBool(id, key, fallback),
+            Set = value =>
+            {
+                settings.SetBool(id, key, value);
+                Context.RefreshAccessibility();
+            },
+        };
     }
 
     private static SliderRow OffsetRow(string label, string key, ISettingsRepository s, Guid id) => new()
@@ -341,7 +380,9 @@ public sealed class SettingsScreen : Screen
         const int rowH = 40;
         int selectedY = RowYof(_selected, rowH);
         float targetScroll = Math.Max(0, selectedY - viewport.Height / 2f);
-        _scroll += (targetScroll - _scroll) * 0.2f;
+        _scroll += Context.Accessibility.ReducedMotion
+            ? targetScroll - _scroll
+            : (targetScroll - _scroll) * 0.2f;
 
         for (int i = 0; i < _rows.Count; i++)
         {

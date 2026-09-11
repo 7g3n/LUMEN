@@ -41,6 +41,29 @@ public sealed class GameContext
 
     public required BackupService Backups { get; init; }
 
+    /// <summary>
+    /// Frame-time bookkeeping (§68). Screens reset it at the point a measurement should
+    /// begin — gameplay does so when the countdown ends, so the numbers describe the song
+    /// rather than the loading that preceded it.
+    /// </summary>
+    public required Engine.FrameProfiler Frames { get; init; }
+
+    /// <summary>
+    /// The accessibility switches in force. Re-read through <see cref="RefreshAccessibility"/>
+    /// whenever they change or the profile does, so every screen can simply consult this.
+    /// </summary>
+    public Lumen.Core.Accessibility.AccessibilityOptions Accessibility { get; private set; } =
+        Lumen.Core.Accessibility.AccessibilityOptions.Default;
+
+    public void RefreshAccessibility()
+    {
+        Accessibility = Session.HasProfile
+            ? Config.AccessibilitySettings.Load(Settings, Session.ActivePlayerId)
+            : Lumen.Core.Accessibility.AccessibilityOptions.Default;
+
+        Config.AccessibilitySettings.Apply(Accessibility);
+    }
+
     public required AppMetaStore AppMeta { get; init; }
 
     public required DisplayConfig Display { get; init; }

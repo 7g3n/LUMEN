@@ -2,6 +2,7 @@ using Lumen.Audio;
 using Lumen.Core;
 using Lumen.Core.Charts;
 using Lumen.Core.Diagnostics;
+using Lumen.Core.Accessibility;
 using Lumen.Core.Achievements;
 using Lumen.Core.Gameplay;
 using Lumen.Core.Replays;
@@ -48,6 +49,29 @@ public sealed class GameplayScreen : Screen
     private double _lastErrorMs;
     private readonly List<Popup> _popups = new();
     private MenuList _pauseMenu = new("RESUME", "RESTART", "QUIT");
+
+    /// <summary>
+    /// Settings the playfield draws with, read once when the play starts.
+    ///
+    /// They used to be read inside <c>Draw</c>, which put a database query in the frame
+    /// loop: harmless-looking, but it allocated on every frame and that allocation is what
+    /// eventually forces a collection in the middle of a song. Nothing here can change
+    /// while a play is running, so reading it once is also the honest thing to do.
+    /// </summary>
+    private double _pxPerMs;
+
+    /// <summary>Reused across frames so draining the autoplay queue allocates nothing.</summary>
+    private readonly List<LaneEvent> _autoSlice = new(8);
+
+    // The HUD's numbers change a few times a second but are drawn a few hundred times a
+    // second. Formatting them only when they actually change keeps the frame loop free of
+    // the string garbage that would otherwise dominate it.
+    private long _hudScore = -1;
+    private string _hudScoreText = "0";
+    private double _hudAccuracy = double.NaN;
+    private string _hudAccuracyText = "100.00%";
+    private int _hudCombo = -1;
+    private string _hudComboText = "0";
 
     public GameplayScreen(string chartPath, string? audioPath = null,
                           bool autoPlay = false, Action<PlayResult>? onComplete = null,
@@ -100,9 +124,18 @@ public sealed class GameplayScreen : Screen
                 _autoEvents = new Queue<LaneEvent>(BuildAutoEvents(_chart));
             }
 
+            double noteSpeed = Context.Settings.GetDouble(
+                Context.Session.ActivePlayerId, "gameplay.noteSpeed", 6.0);
+            _pxPerMs = noteSpeed * 0.13;
+
             _conductor.Seek(0);
             _conductor.Play();
             _phase = Phase.Playing;
+
+            // Measure the song, not the decode and device setup that just happened: a
+            // stutter while loading is not the stutter this is looking for (§68).
+            Context.Frames.Reset();
+
             Log.Info($"play: {_chart.Meta.Title} [{_chart.Meta.DifficultyName}] audio={( _track.HasOutput ? "on" : "silent")}");
         }
         catch (Exception ex)
@@ -179,6 +212,8 @@ public sealed class GameplayScreen : Screen
             PlayResult result = PlayResult.From(_session);
             Log.Info($"result: {result.Accuracy:0.00}% {result.Score:N0} x{result.MaxCombo} " +
                      $"P{result.Perfect}/G{result.Great}/g{result.Good}/B{result.Bad}/M{result.Miss}");
+            Log.Info("frames: " + Context.Frames.Summary());
+            Log.Info("worst frames: " + Context.Frames.StutterSummary());
 
             Core.Scores.ScoreSaveOutcome? outcome = SaveResult(result);
 
@@ -297,13 +332,13 @@ public sealed class GameplayScreen : Screen
 
     private IReadOnlyList<LaneEvent> DrainAuto(double now)
     {
-        var slice = new List<LaneEvent>();
+        _autoSlice.Clear();
         while (_autoEvents!.Count > 0 && _autoEvents.Peek().TimeMs <= now)
         {
-            slice.Add(_autoEvents.Dequeue());
+            _autoSlice.Add(_autoEvents.Dequeue());
         }
 
-        return slice;
+        return _autoSlice;
     }
 
     private Rectangle PauseMenuArea() => new(Manager.Context.Display.Width / 2 - 120,
@@ -315,11 +350,9 @@ public sealed class GameplayScreen : Screen
     {
         var layout = new GameplayLayout(ui, _chart.LaneCount);
         double now = _phase == Phase.Loading ? 0 : _conductor.SongTimeMs;
-        double noteSpeed = Context.Settings.GetDouble(Context.Session.ActivePlayerId, "gameplay.noteSpeed", 6.0);
-        double pxPerMs = noteSpeed * 0.13;
 
         DrawField(ui, layout);
-        DrawNotes(ui, layout, now, pxPerMs);
+        DrawNotes(ui, layout, now, _pxPerMs);
         DrawPopups(ui, layout, now);
         DrawHud(ui, layout, now);
 
@@ -362,8 +395,13 @@ public sealed class GameplayScreen : Screen
 
     private void DrawNotes(UiRenderer ui, GameplayLayout l, double now, double pxPerMs)
     {
-        foreach (NoteObject note in _session.Notes)
+        // Indexed rather than foreach: the list is reached through an interface, and
+        // enumerating one of those allocates an enumerator on every frame.
+        IReadOnlyList<NoteObject> notes = _session.Notes;
+        for (int i = 0; i < notes.Count; i++)
         {
+            NoteObject note = notes[i];
+
             if (note.Status == NoteStatus.Done && note.Note.TimeMs < now - 200)
             {
                 continue;
@@ -394,14 +432,42 @@ public sealed class GameplayScreen : Screen
 
     private void DrawPopups(UiRenderer ui, GameplayLayout l, double now)
     {
-        _popups.RemoveAll(p => now - p.SpawnMs > 450);
+        // A predicate here would capture `now` into a fresh closure every frame; the
+        // popups are already in spawn order, so dropping the expired prefix is both
+        // cheaper and simpler.
+        int expired = 0;
+        while (expired < _popups.Count && now - _popups[expired].SpawnMs > 450)
+        {
+            expired++;
+        }
+
+        if (expired > 0)
+        {
+            _popups.RemoveRange(0, expired);
+        }
+
+        AccessibilityOptions a11y = Context.Accessibility;
+        if (!a11y.ShowJudgement)
+        {
+            return;
+        }
+
         foreach (Popup p in _popups)
         {
             double age = (now - p.SpawnMs) / 450.0;
             if (age < 0) continue;
+
+            // Reduced motion keeps the word still and lets it fade; the information is in
+            // the word, and the drift is decoration (§67).
             float alpha = (float)(1 - age);
-            int y = (int)(l.HitLineY - 60 - age * 24);
-            ui.Text(ui.Display(Theme.DisplayM), p.Judgement.Label(),
+            int y = a11y.ReducedMotion
+                ? l.HitLineY - 60
+                : (int)(l.HitLineY - 60 - age * 24);
+
+            // The shape makes the grade readable without telling the colours apart.
+            string label = JudgementShapes.Label(p.Judgement, a11y.ShapeCues);
+
+            ui.Text(ui.Display(Theme.DisplayM), label,
                 new Rectangle(l.LaneX(p.Lane), y, l.LaneWidth, 24),
                 JudgementColor(p.Judgement).WithAlpha(alpha), TextAlign.Center);
         }
@@ -411,14 +477,32 @@ public sealed class GameplayScreen : Screen
     {
         ScoreState s = _session.Score;
 
-        ui.Text(ui.Mono(18), s.Score.ToString("N0"),
+        if (s.Score != _hudScore)
+        {
+            _hudScore = s.Score;
+            _hudScoreText = s.Score.ToString("N0");
+        }
+
+        if (Math.Abs(s.Accuracy - _hudAccuracy) > 0.0001)
+        {
+            _hudAccuracy = s.Accuracy;
+            _hudAccuracyText = s.Accuracy.ToString("0.00") + "%";
+        }
+
+        ui.Text(ui.Mono(18), _hudScoreText,
             new Rectangle(0, 24, ui.Width - 40, 24), Theme.Text, TextAlign.Right);
-        ui.Text(ui.Mono(Theme.Label), $"{s.Accuracy:0.00}%",
+        ui.Text(ui.Mono(Theme.Label), _hudAccuracyText,
             new Rectangle(0, 50, ui.Width - 40, 18), Theme.TextMuted, TextAlign.Right);
 
-        if (s.Combo > 1)
+        if (s.Combo > 1 && Context.Accessibility.ShowCombo)
         {
-            ui.Text(ui.Display(44), s.Combo.ToString(),
+            if (s.Combo != _hudCombo)
+            {
+                _hudCombo = s.Combo;
+                _hudComboText = s.Combo.ToString();
+            }
+
+            ui.Text(ui.Display(44), _hudComboText,
                 new Rectangle(l.FieldX, l.HitLineY / 2, l.FieldWidth, 48), Theme.Text, TextAlign.Center);
             ui.Text(ui.Mono(Theme.Label), "COMBO",
                 new Rectangle(l.FieldX, l.HitLineY / 2 + 46, l.FieldWidth, 16), Theme.TextFaint, TextAlign.Center);

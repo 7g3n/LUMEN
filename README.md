@@ -7,25 +7,38 @@ and a built-in chart editor. Play · compete · create — in one `LUMEN.exe`.
 
 ## Status
 
-**Phase 9 — Backup, restore and machine migration: complete.** One `.lumenbackup` file
-carries everything you would otherwise lose by changing computer: profiles, scores,
-ratings, your chart library and its audio, replays and achievements. Restore it on a clean
-install and you have your game back; restore it onto a machine that already has data and
-it adds to it rather than wiping it. Backups are taken automatically once a day and
-whenever the game has been updated — the moment before a migration touches your data is
-exactly when a copy is worth having. 467 unit tests green.
+**Phase 10 — Polish, optimization and accessibility: complete.** A new player is taken
+from naming themselves, through a tutorial that asks them to press each lane key rather
+than telling them which is which, straight into their first song — no menu to navigate and
+nothing to read. Timing calibration measures your taps against a generated metronome and
+takes the median, so one fumbled tap cannot move your offset. Accessibility (§67) covers
+reduced motion, high contrast, shape cues beside every judgement, effect intensity, and
+switches for the judgement and combo displays.
 
-Prior phases: replays that reproduce a play exactly and achievements that unlock from your
-statistics (Phase 8); the chart and package formats with validation, revision history and
-format migration (Phase 7); the chart editor with total undo, a beat grid that follows tempo
-changes and Test Play (Phase 6); the song library, Song Select with per-chart bests and
-local rankings, and favourites (Phase 5); Rating, PP, per-play performances and statistics, with score
-saving as one all-or-nothing SQLite transaction (Phase 4); Tap + Hold gameplay with a
+Frame pacing was measured rather than assumed. Over a three-minute song at 240 fps —
+44,927 frames — the game's own work never exceeded its budget: 2.80 ms at worst against
+5.63 ms, and not one garbage collection during the song. Getting there meant removing a
+database query from the draw loop, a per-frame rescan of every note, and the per-frame
+string formatting behind them: 2,791 bytes allocated per frame became 234. The profiler
+splits each frame into the game's own work, the driver's present call and the frame
+limiter's wait, which is how a reproducible 60 ms stutter was identified as 58 ms inside
+the graphics driver with the game's work for that frame at a tenth of a millisecond.
+528 unit tests green.
+
+Prior phases: one-file backup, restore and machine migration (Phase 9); replays that
+reproduce a play exactly and achievements that unlock from your statistics (Phase 8); the
+chart and package formats with validation, revision history and format migration (Phase 7);
+the chart editor with total undo, a beat grid that follows tempo changes and Test Play
+(Phase 6); the song library, Song Select with per-chart bests and local rankings, and
+favourites (Phase 5); Rating, PP, per-play performances and statistics, with score saving
+as one all-or-nothing SQLite transaction (Phase 4); Tap + Hold gameplay with a
 deterministic engine and a NAudio/WASAPI audio clock (Phase 3); player setup, profiles and
 the screen/UI toolkit (Phase 2); window, clock, logging, crash guard, SQLite migrations
 (Phase 1).
 
-`LUMEN.exe --autoplay` plays the practice chart with perfect input and prints the result.
+`LUMEN.exe --autoplay` plays the practice chart with perfect input and prints the result
+and the frame-time figures; `--autoplay <chart>` does the same for any chart, which is how
+a chart can be verified end to end without a person at the keyboard.
 `LUMEN.exe --capture <dir>` renders each screen to a PNG.
 
 See [`docs/PLAN.md`](docs/PLAN.md) for the full 11-phase plan and

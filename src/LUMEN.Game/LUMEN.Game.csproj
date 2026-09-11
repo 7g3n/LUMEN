@@ -13,6 +13,15 @@
     <RollForward>Major</RollForward>
   </PropertyGroup>
 
+  <!--
+    Release builds are precompiled. Without it the first frame of a play pays to JIT the
+    gameplay draw path - measured at 7 ms, which is the only frame of a three-minute song
+    the game itself was pushing over budget (§68).
+  -->
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+    <PublishReadyToRun>true</PublishReadyToRun>
+  </PropertyGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\LUMEN.Core\LUMEN.Core.csproj" />
     <ProjectReference Include="..\LUMEN.Data\LUMEN.Data.csproj" />

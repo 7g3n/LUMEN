@@ -14,6 +14,13 @@ public static class SettingKeys
     public const string EffectIntensity = "gameplay.effects";
     public const string InputOffsetMs = "timing.inputOffsetMs";
     public const string AudioOffsetMs = "timing.audioOffsetMs";
+
+    // Accessibility (spec §67)
+    public const string ReducedMotion = "a11y.reducedMotion";
+    public const string HighContrast = "a11y.highContrast";
+    public const string ShapeCues = "a11y.shapeCues";
+    public const string ShowJudgement = "a11y.showJudgement";
+    public const string ShowCombo = "a11y.showCombo";
 }
 
 /// <summary>One line in the settings list. Section headers are non-interactive.</summary>

@@ -11,6 +11,10 @@ public sealed class ScreenManager
 {
     private const double FadeSeconds = 0.16;
 
+    /// <summary>Zero with reduced motion: screens cut rather than cross-fade (§67).</summary>
+    private double EffectiveFadeSeconds =>
+        Context.Accessibility.ReducedMotion ? 0 : FadeSeconds;
+
     private readonly List<Screen> _stack = new();
 
     private enum Phase { Idle, Out, In }
@@ -32,8 +36,8 @@ public sealed class ScreenManager
     /// <summary>Fraction of black covering the screen (0 = clear, 1 = opaque).</summary>
     public float FadeAlpha => _phase switch
     {
-        Phase.Out => (float)(_phaseTime / FadeSeconds),
-        Phase.In => 1f - (float)(_phaseTime / FadeSeconds),
+        Phase.Out => EffectiveFadeSeconds <= 0 ? 1f : (float)(_phaseTime / EffectiveFadeSeconds),
+        Phase.In => EffectiveFadeSeconds <= 0 ? 0f : 1f - (float)(_phaseTime / EffectiveFadeSeconds),
         _ => 0f,
     };
 
@@ -111,7 +115,7 @@ public sealed class ScreenManager
         }
 
         _phaseTime += input.DeltaSeconds;
-        if (_phaseTime < FadeSeconds)
+        if (_phaseTime < EffectiveFadeSeconds)
         {
             if (_phase == Phase.In)
             {
