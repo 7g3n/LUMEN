@@ -3,6 +3,7 @@ using System.IO;
 using Lumen.Core;
 using Lumen.Core.Diagnostics;
 using Lumen.Data;
+using Lumen.Data.Library;
 using Lumen.Data.Repositories;
 using Lumen.Game.Config;
 using Lumen.Game.Engine;
@@ -98,6 +99,7 @@ internal sealed class LumenGame : Microsoft.Xna.Framework.Game
             Profiles = profiles,
             Settings = settings,
             Scores = new ScoreRepository(_db, balance),
+            Library = new LibraryService(new LibraryRepository(_db), _paths),
             AppMeta = appMeta,
             Display = _display,
             Balance = balance,
@@ -177,7 +179,8 @@ internal sealed class LumenGame : Microsoft.Xna.Framework.Game
             ("2-menu", new MainMenuScreen()),
             ("3-profile", new ProfileScreen()),
             ("4-settings", new SettingsScreen()),
-            ("5-gameplay", new Screens.GameplayScreen(test.ChartPath, test.AudioPath)),
+            ("5-songselect", new SongSelectScreen()),
+            ("6-gameplay", new Screens.GameplayScreen(test.ChartPath, test.AudioPath)),
         };
 
         using var target = new RenderTarget2D(GraphicsDevice, _display.Width, _display.Height);

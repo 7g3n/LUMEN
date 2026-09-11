@@ -99,5 +99,47 @@ public static class SchemaMigrations
 
             CREATE INDEX ix_snapshots_player ON rating_snapshots (player_id, computed_utc DESC);
             """),
+
+        Migration.Sql(4, "library_and_favorites",
+            """
+            CREATE TABLE charts (
+                chart_key        TEXT PRIMARY KEY,
+                title            TEXT NOT NULL,
+                artist           TEXT NOT NULL,
+                creator          TEXT NOT NULL DEFAULT '',
+                difficulty_name  TEXT NOT NULL,
+                difficulty_level REAL NOT NULL,
+                note_count       INTEGER NOT NULL DEFAULT 0,
+                hold_count       INTEGER NOT NULL DEFAULT 0,
+                lane_count       INTEGER NOT NULL DEFAULT 4,
+                duration_ms      REAL NOT NULL DEFAULT 0,
+                preview_ms       REAL NOT NULL DEFAULT 0,
+                audio_file       TEXT NOT NULL DEFAULT '',
+                chart_path       TEXT NOT NULL,
+                audio_path       TEXT NOT NULL DEFAULT '',
+                source           TEXT NOT NULL DEFAULT 'Local',
+                attributes_json  TEXT NOT NULL DEFAULT '{}',
+                added_utc        TEXT NOT NULL,
+                updated_utc      TEXT NOT NULL
+            ) WITHOUT ROWID;
+
+            CREATE INDEX ix_charts_song  ON charts (title, artist);
+            CREATE INDEX ix_charts_level ON charts (difficulty_level);
+
+            CREATE TABLE favorites (
+                player_id   TEXT NOT NULL REFERENCES profiles (player_id) ON DELETE CASCADE,
+                chart_key   TEXT NOT NULL,
+                created_utc TEXT NOT NULL,
+                PRIMARY KEY (player_id, chart_key)
+            ) WITHOUT ROWID;
+
+            CREATE VIEW play_history AS
+                SELECT s.score_id, s.player_id, s.chart_key, s.chart_title, s.chart_artist,
+                       s.chart_creator, s.difficulty_name, s.difficulty_level, s.score,
+                       s.accuracy, s.max_combo, s.grade, s.full_combo, s.all_perfect,
+                       COALESCE(p.pp, 0) AS pp, s.played_utc
+                FROM scores s
+                LEFT JOIN performances p ON p.score_id = s.score_id;
+            """),
     };
 }

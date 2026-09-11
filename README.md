@@ -7,17 +7,17 @@ and a built-in chart editor. Play · compete · create — in one `LUMEN.exe`.
 
 ## Status
 
-**Phase 4 — Rating / PP / performance / statistics: complete.** A play now produces
-Performance Points (8 independent, config-driven, unit-tested steps), a per-play
-performance rating, and an updated overall Rating (decay-weighted mean of best
-performances). Score saving is one SQLite transaction (rollback leaves nothing).
-The result screen counts up the PP and Rating change and flags new records; the
-profile screen shows real stats, best performances, and a five-axis skill profile.
-174 unit tests green.
+**Phase 5 — Song select: complete.** The chart folders are scanned into a library index,
+and Song Select lists songs with their difficulty range, per-chart best score, accuracy
+and PP, and the chart's local ranking with your own row marked — all on one screen.
+Live search over title, artist and charter; six sort keys; favourites that persist per
+profile. Picking a chart starts the game. 261 unit tests green.
 
-Prior phases: Tap + Hold gameplay with a deterministic engine and a NAudio/WASAPI
-audio clock (Phase 3); player setup, profiles and the screen/UI toolkit (Phase 2);
-window, clock, logging, crash guard, SQLite migrations (Phase 1).
+Prior phases: Rating, PP, per-play performances and statistics, with score saving as one
+all-or-nothing SQLite transaction (Phase 4); Tap + Hold gameplay with a deterministic
+engine and a NAudio/WASAPI audio clock (Phase 3); player setup, profiles and the
+screen/UI toolkit (Phase 2); window, clock, logging, crash guard, SQLite migrations
+(Phase 1).
 
 `LUMEN.exe --autoplay` plays the practice chart with perfect input and prints the result.
 `LUMEN.exe --capture <dir>` renders each screen to a PNG.

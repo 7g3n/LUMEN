@@ -1,6 +1,7 @@
 using Lumen.Core.Balance;
 using Lumen.Core.Charts;
 using Lumen.Core.Gameplay;
+using Lumen.Core.Library;
 using Lumen.Core.Profiles;
 using Lumen.Core.Pp;
 using Lumen.Core.Rating;
@@ -197,6 +198,98 @@ public sealed class ScoreRepository : IScoreRepository
         return r.Read()
             ? new ChartBest(r.GetInt64(0), r.GetDouble(1), r.GetDouble(2), ParseUtc(r.GetString(3)))
             : null;
+    }
+
+    public IReadOnlyDictionary<string, ChartStats> GetChartStats(Guid playerId)
+    {
+        using SqliteCommand cmd = _db.CreateCommand();
+        // Best score, best accuracy and best PP are maximised independently on purpose:
+        // a player's highest-scoring run is not necessarily their most accurate one, and
+        // Song Select reports all three (spec §35, §79).
+        cmd.CommandText =
+            """
+            SELECT s.chart_key,
+                   MAX(s.score)                AS best_score,
+                   MAX(s.accuracy)             AS best_accuracy,
+                   COALESCE(MAX(p.pp), 0)      AS best_pp,
+                   COUNT(*)                    AS play_count
+            FROM scores s
+            LEFT JOIN performances p ON p.score_id = s.score_id
+            WHERE s.player_id = $p
+            GROUP BY s.chart_key;
+            """;
+        cmd.Parameters.AddWithValue("$p", playerId.ToString("D"));
+
+        var map = new Dictionary<string, ChartStats>(StringComparer.Ordinal);
+        using SqliteDataReader r = cmd.ExecuteReader();
+        while (r.Read())
+        {
+            map[r.GetString(0)] = new ChartStats(
+                r.GetInt64(1), r.GetDouble(2), r.GetDouble(3), r.GetInt32(4));
+        }
+
+        return map;
+    }
+
+    public IReadOnlyList<ChartRankingEntry> GetChartRanking(string chartKey, int limit, Guid selfPlayerId)
+    {
+        using SqliteCommand cmd = _db.CreateCommand();
+        // One row per profile, at that profile's best score. A player who has played a
+        // chart fifty times occupies one place on the board, not fifty.
+        cmd.CommandText =
+            """
+            SELECT s.player_id, pr.display_name, s.score, s.accuracy,
+                   COALESCE(MAX(p.pp), 0), s.max_combo, s.full_combo, s.played_utc
+            FROM scores s
+            JOIN profiles pr ON pr.player_id = s.player_id
+            LEFT JOIN performances p ON p.score_id = s.score_id
+            WHERE s.chart_key = $ck
+              AND s.score = (SELECT MAX(q.score) FROM scores q
+                             WHERE q.chart_key = s.chart_key AND q.player_id = s.player_id)
+            GROUP BY s.player_id
+            ORDER BY s.score DESC, s.accuracy DESC, s.played_utc ASC
+            LIMIT $n;
+            """;
+        cmd.Parameters.AddWithValue("$ck", chartKey);
+        cmd.Parameters.AddWithValue("$n", limit);
+
+        var list = new List<ChartRankingEntry>();
+        using SqliteDataReader r = cmd.ExecuteReader();
+        int rank = 1;
+        while (r.Read())
+        {
+            var playerId = Guid.Parse(r.GetString(0));
+            list.Add(new ChartRankingEntry(
+                rank++, playerId, r.GetString(1), r.GetInt64(2), r.GetDouble(3),
+                r.GetDouble(4), r.GetInt32(5), r.GetInt64(6) == 1, ParseUtc(r.GetString(7)),
+                playerId == selfPlayerId));
+        }
+
+        return list;
+    }
+
+    public int? GetChartRank(string chartKey, Guid playerId)
+    {
+        using SqliteCommand cmd = _db.CreateCommand();
+        cmd.CommandText =
+            """
+            SELECT (SELECT COUNT(*) FROM (
+                        SELECT MAX(score) AS best FROM scores
+                        WHERE chart_key = $ck GROUP BY player_id
+                    ) WHERE best > COALESCE((SELECT MAX(score) FROM scores
+                                             WHERE chart_key = $ck AND player_id = $p), -1)) + 1,
+                   (SELECT COUNT(*) FROM scores WHERE chart_key = $ck AND player_id = $p);
+            """;
+        cmd.Parameters.AddWithValue("$ck", chartKey);
+        cmd.Parameters.AddWithValue("$p", playerId.ToString("D"));
+
+        using SqliteDataReader r = cmd.ExecuteReader();
+        if (!r.Read() || r.GetInt32(1) == 0)
+        {
+            return null;
+        }
+
+        return r.GetInt32(0);
     }
 
     public IReadOnlyList<BestPerformance> GetBestPerformances(Guid playerId, int limit = 50)

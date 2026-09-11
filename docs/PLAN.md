@@ -101,11 +101,24 @@ real numbers.
 `rating 0.00->4.95 PB PPREC` then `4.95->4.95` (no double-count); profile screen shows
 all headline numbers + skill axes (screenshot); 174 unit tests green.
 
-### Phase 5 — Song select (§26–27, §35, §39, §62–63)
-Library scan → DB; Song Select with per-chart best score/accuracy/PP; difficulty banding.
-Sort/filter/search. Local Ranking from SQLite with a YOU row. Favourites. Play history.
-**Exit:** charts listed with best stats; local ranking shows rank; favourites persist;
-selecting a chart launches Phase-3 gameplay.
+### Phase 5 — Song select (§26–27, §35, §39, §62–63) ✅
+Core: `LibraryChart` / `SongGroup` / `ChartStats`; `DifficultyBands` (§26–27, bands are
+display only — every calculation still uses the float level); `LibraryQuery`, a pure
+group/filter/sort used by the screen and the tests alike. `ILibraryRepository`.
+Data: schema v4 (`charts`, `favorites`, `play_history` view). `LibraryScanner` reconciles
+the index with the chart folders — the files stay the source of truth, a missing file
+drops its row, and one unreadable chart never fails the scan. `ScoreRepository` gains
+`GetChartStats` (best score / accuracy / PP per chart in one query), `GetChartRanking`
+(one row per profile at its best score) and `GetChartRank`.
+Game: `SongSelectScreen` — song list with level ranges, difficulty chips, YOUR BEST, and
+the local ranking with the YOU row on the same screen; live search over title/artist/
+charter, six sort keys, favourites, and selection that survives a play. PLAY and
+SONG SELECT both open it.
+**Exit met:** 87 new tests (261 total, green) covering grouping, search folding,
+level-range filtering, every sort key, favourites-per-profile, scanner add/update/prune/
+skip-broken, ranking order + YOU marking + rank lookup; `--capture` shows the library
+with three songs, five charts, a best-score panel and a `YOU #1` ranking row; selecting a
+chart pushes the Phase-3 gameplay screen.
 
 ### Phase 6 — Chart editor (§42–51, §86–91)
 ImGui shell; audio import + preview; waveform; timeline + zoom + playback speed.

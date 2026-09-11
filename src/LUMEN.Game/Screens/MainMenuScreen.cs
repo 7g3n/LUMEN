@@ -32,10 +32,8 @@ public sealed class MainMenuScreen : Screen
         switch (Actions[activated])
         {
             case "PLAY":
-                StartPractice();
-                break;
             case "SONG SELECT":
-                Manager.Push(new PlaceholderScreen("Song Select", "The song library and local rankings arrive in Phase 5."));
+                OpenSongSelect();
                 break;
             case "EDITOR":
                 Manager.Push(new PlaceholderScreen("Chart Editor", "The chart editor arrives in Phase 6."));
@@ -55,17 +53,23 @@ public sealed class MainMenuScreen : Screen
         }
     }
 
-    private void StartPractice()
+    /// <summary>
+    /// Both PLAY and SONG SELECT land here: the spec's flow is "PLAY → pick a song", so
+    /// the two are the same door with different labels rather than two different places.
+    /// The bundled practice track is installed first, so a fresh profile never meets an
+    /// empty library.
+    /// </summary>
+    private void OpenSongSelect()
     {
         try
         {
-            var installed = Content.TestContent.EnsureInstalled(Context.Paths);
-            Manager.Push(new GameplayScreen(installed.ChartPath, installed.AudioPath));
+            Content.TestContent.EnsureInstalled(Context.Paths);
+            Manager.Push(new SongSelectScreen());
         }
         catch (Exception ex)
         {
-            Core.Diagnostics.Log.Error("could not prepare practice track", ex);
-            Manager.Push(new ErrorNoticeScreen("Couldn't prepare the practice track", ex.Message));
+            Core.Diagnostics.Log.Error("could not open song select", ex);
+            Manager.Push(new ErrorNoticeScreen("Couldn't open the song library", ex.Message));
         }
     }
 

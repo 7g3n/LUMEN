@@ -4,6 +4,7 @@ using Lumen.Core.Profiles;
 using Lumen.Core.Scores;
 using Lumen.Core.Settings;
 using Lumen.Data;
+using Lumen.Data.Library;
 using Lumen.Game.Config;
 
 namespace Lumen.Game;
@@ -23,6 +24,8 @@ public sealed class GameContext
     public required ISettingsRepository Settings { get; init; }
 
     public required IScoreRepository Scores { get; init; }
+
+    public required LibraryService Library { get; init; }
 
     public required AppMetaStore AppMeta { get; init; }
 

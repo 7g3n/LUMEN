@@ -39,6 +39,14 @@ public sealed record PlayHistoryEntry(
 /// <summary>The player's best on a specific chart, for personal-best detection (spec §37).</summary>
 public sealed record ChartBest(long Score, double Accuracy, double Pp, DateTime PlayedUtc);
 
+/// <summary>
+/// One row of a chart's local leaderboard (spec §39). Every profile on this installation
+/// appears once, at its best score. <see cref="IsSelf"/> marks the YOU row.
+/// </summary>
+public sealed record ChartRankingEntry(
+    int Rank, Guid PlayerId, string PlayerName, long Score, double Accuracy, double Pp,
+    int MaxCombo, bool FullCombo, DateTime PlayedUtc, bool IsSelf);
+
 public sealed record RatingSnapshot(double Rating, double TotalPp, double BestPp, DateTime ComputedUtc)
 {
     public static readonly RatingSnapshot Empty = new(0, 0, 0, DateTime.MinValue);
