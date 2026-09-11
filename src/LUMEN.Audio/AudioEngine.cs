@@ -35,4 +35,22 @@ public sealed class AudioEngine
 
     /// <summary>Decode-only, for waveform analysis / the editor (Phase 6).</summary>
     public AudioClip Decode(string path) => AudioClipLoader.Load(path);
+
+    /// <summary>
+    /// Wraps an already-decoded clip in a track. The editor decodes once - it needs the
+    /// samples for the waveform anyway - and then builds a track per playback speed from
+    /// the clip it already holds, rather than reading the file again each time.
+    /// </summary>
+    public IAudioTrack CreateTrack(AudioClip clip, float volume = 1f)
+    {
+        try
+        {
+            return new WasapiAudioTrack(clip) { Volume = volume };
+        }
+        catch (Exception ex)
+        {
+            Log.Warn("no audio output device — running silent", ex);
+            return new VirtualAudioTrack(clip.DurationSeconds) { Volume = volume };
+        }
+    }
 }

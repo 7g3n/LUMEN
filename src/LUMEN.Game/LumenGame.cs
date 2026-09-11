@@ -180,7 +180,8 @@ internal sealed class LumenGame : Microsoft.Xna.Framework.Game
             ("3-profile", new ProfileScreen()),
             ("4-settings", new SettingsScreen()),
             ("5-songselect", new SongSelectScreen()),
-            ("6-gameplay", new Screens.GameplayScreen(test.ChartPath, test.AudioPath)),
+            ("6-editor", new Editor.EditorScreen(test.ChartPath)),
+            ("7-gameplay", new Screens.GameplayScreen(test.ChartPath, test.AudioPath)),
         };
 
         using var target = new RenderTarget2D(GraphicsDevice, _display.Width, _display.Height);

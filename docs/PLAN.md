@@ -120,13 +120,36 @@ skip-broken, ranking order + YOU marking + rank lookup; `--capture` shows the li
 with three songs, five charts, a best-score panel and a `YOU #1` ranking row; selecting a
 chart pushes the Phase-3 gameplay screen.
 
-### Phase 6 — Chart editor (§42–51, §86–91)
-ImGui shell; audio import + preview; waveform; timeline + zoom + playback speed.
-BPM (single + changes); offsets; grid snap incl. triplets.
-Note place/delete/move; drag multi-select; relative copy/paste; undo/redo (Command pattern).
-Configurable shortcuts; Test Play ⇄ editor; save to local library; creator auto-set.
-**Exit:** audio → notes → Test Play → save → Song Select → playable; every mutation
-undo/redo-able (command-stack test); waveform aligns to audio position.
+### Phase 6 — Chart editor (§42–51, §86–91) ✅
+Core: `IEditCommand` — applying one returns the command that undoes it, so no mutation
+can exist without its inverse (§87). `AddNotes` / `RemoveNotes` / `ReplaceNotes` (move,
+resize and retype are one operation on an immutable list) / `SetBpmPoints` /
+`SetChartOffset` / `SetMeta` / `CompositeCommand`; `CommandStack` with a bounded history,
+redo discarded on a new edit, and dirty tracking. `BeatGrid` — snap, step and lines in
+beats off the chart's own tempo map, so the grid follows a tempo change; 1/1…1/32 plus
+the triplet family (§45). `NoteClipboard` keeps a phrase relative to its earliest note so
+paste lands at the playhead (§88).
+Audio: `WaveformPeaks` reduces a decoded track to min/max buckets — min/max rather than an
+average, because the transient is the thing an author lines notes up against (§48).
+`AudioClip.AtSpeed` resamples for slow preview; it moves the pitch too, which is the
+honest trade without a phase vocoder and is easier to hear anyway.
+Game: `EditorScreen` on LUMEN's own UI toolkit rather than an ImGui shell — timeline with
+time running upward like the gameplay screen, beat grid, note place/move/resize, drag
+multi-select, copy/paste, undo/redo, waveform strip that seeks on click, playback at
+0.25–1×, Test Play that saves first and restores the editor afterwards (§50), and save
+straight into the local library with the creator taken from the signed-in profile (§78).
+Song Select gains `E` to open the highlighted chart.
+**Exit met:** 73 new tests (334 total, green): undo/redo round-trips an arbitrary edit
+sequence back to the exact document and forward again, history is bounded, a composite
+edit undoes as one step; grid snapping is idempotent, follows a tempo change and handles
+triplets; clipboard preserves relative timing and hold lengths; waveform keeps a
+one-frame transient. `--capture` shows the editor with notes, bar numbers and a real
+waveform. Editing a saved chart was leaving a stale library row behind — found by the
+round-trip test, fixed in the scanner, pinned by two more.
+**Deferred, not done:** the shortcut map is fixed rather than configurable, and mid-song
+BPM changes are supported by the format, the grid and `SetBpmPoints` but have no editor
+UI yet — the toolbar only nudges the opening tempo. Audio import cycles through the songs
+folder because the toolkit has no file dialog; Phase 7 brings packages and a picker.
 
 ### Phase 7 — Chart system (§52–61, §98)
 `.lumenchart` / `.lumen` / `.lumenbackup` formats; parser + validator.

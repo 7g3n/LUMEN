@@ -39,6 +39,12 @@ public sealed class LibraryScanner
     public Result Scan()
     {
         var seen = new HashSet<string>(StringComparer.Ordinal);
+        // Every file this pass actually read. A chart key folds in the note count, so
+        // editing a chart gives its file a new key; without knowing which files were
+        // visited, the row under the old key would survive - the file still exists, it
+        // just no longer holds that chart - and Song Select would list a difficulty that
+        // is not there any more.
+        var scannedPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         IReadOnlyDictionary<string, string> existing = _library.AllPaths();
 
         int added = 0;
@@ -55,6 +61,8 @@ public sealed class LibraryScanner
             foreach (string file in Directory.EnumerateFiles(
                          directory, $"*.{GameIdentity.ChartExtension}", SearchOption.AllDirectories))
             {
+                scannedPaths.Add(file);
+
                 LibraryChart? entry = TryRead(file, source);
                 if (entry is null)
                 {
@@ -87,7 +95,15 @@ public sealed class LibraryScanner
         int removed = 0;
         foreach ((string key, string path) in existing)
         {
-            if (seen.Contains(key) || File.Exists(path))
+            if (seen.Contains(key))
+            {
+                continue;
+            }
+
+            // Drop the row when its file is gone, or when the file was read this pass and
+            // turned out to be a different chart than the one this row describes.
+            bool stale = !File.Exists(path) || scannedPaths.Contains(path);
+            if (!stale)
             {
                 continue;
             }

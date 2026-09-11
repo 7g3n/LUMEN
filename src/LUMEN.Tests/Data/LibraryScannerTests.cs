@@ -141,6 +141,46 @@ public class LibraryScannerTests : IDisposable
     }
 
     [Fact]
+    public void Editing_a_chart_replaces_its_row_instead_of_adding_a_second_one()
+    {
+        // The chart key folds in the note count, so a saved edit arrives under a new key.
+        // The row under the old key has to go, or every save would leave a difficulty in
+        // the library that no longer exists in the file.
+        string path = WriteChart(Chart("First Light", "MASTER", 14.7, notes: 64), "first-light");
+        _scanner.Scan();
+        _library.Count().Should().Be(1);
+
+        File.WriteAllText(path, ChartJson.Serialize(Chart("First Light", "MASTER", 14.7, notes: 80)));
+        LibraryScanner.Result result = _scanner.Scan();
+
+        _library.Count().Should().Be(1);
+        _library.All().Single().NoteCount.Should().Be(80);
+        result.Removed.Should().Be(1);
+    }
+
+    [Fact]
+    public void A_chart_whose_file_was_not_visited_this_pass_is_left_alone()
+    {
+        // Only the folders the scanner walks are reconciled; a row pointing somewhere
+        // else (an old location, a drive that is offline) must not be silently dropped
+        // while its file is still there.
+        WriteChart(Chart("Kept", "NORMAL", 8), "kept");
+        _scanner.Scan();
+
+        string elsewhere = Path.Combine(_dir, "outside." + GameIdentity.ChartExtension);
+        File.WriteAllText(elsewhere, ChartJson.Serialize(Chart("Outside", "NORMAL", 8)));
+        _library.Upsert(_library.All().Single() with
+        {
+            ChartKey = "outside-key",
+            ChartPath = elsewhere,
+        });
+
+        _scanner.Scan();
+
+        _library.Get("outside-key").Should().NotBeNull();
+    }
+
+    [Fact]
     public void An_unreadable_chart_is_skipped_without_failing_the_scan()
     {
         WriteChart(Chart("Good", "NORMAL", 8), "good");

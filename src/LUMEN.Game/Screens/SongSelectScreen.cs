@@ -286,6 +286,10 @@ public sealed class SongSelectScreen : Screen
         {
             ToggleFavorite();
         }
+        else if (!searching && input.Pressed(Keys.E))
+        {
+            EditSelected();
+        }
         else if (input.Pressed(Keys.Enter) || (!searching && input.Pressed(Keys.Space)))
         {
             Play();
@@ -406,6 +410,24 @@ public sealed class SongSelectScreen : Screen
         }
     }
 
+    /// <summary>Opens the selected chart in the editor (spec §59: the library is editable).</summary>
+    private void EditSelected()
+    {
+        if (SelectedChart is not { } chart)
+        {
+            return;
+        }
+
+        if (!File.Exists(chart.ChartPath))
+        {
+            _error = "That chart's file is missing. The library will forget it on the next scan.";
+            return;
+        }
+
+        _error = null;
+        Manager.Push(new Editor.EditorScreen(chart.ChartPath));
+    }
+
     private void Play()
     {
         if (SelectedChart is not { } chart)
@@ -455,7 +477,7 @@ public sealed class SongSelectScreen : Screen
         ScreenChrome.FooterHint(ui,
             _search.Length > 0
                 ? "↑↓ song  ·  ←→ difficulty  ·  Enter play  ·  Tab sort  ·  Esc clears the search"
-                : "↑↓ song  ·  ←→ difficulty  ·  Enter play  ·  F favourite  ·  Tab sort  ·  type to search  ·  Esc back");
+                : "↑↓ song  ·  ←→ difficulty  ·  Enter play  ·  E edit  ·  F favourite  ·  Tab sort  ·  type to search  ·  Esc back");
     }
 
     private void DrawHeader(UiRenderer ui, Rectangle content)

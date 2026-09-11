@@ -36,7 +36,7 @@ public sealed class MainMenuScreen : Screen
                 OpenSongSelect();
                 break;
             case "EDITOR":
-                Manager.Push(new PlaceholderScreen("Chart Editor", "The chart editor arrives in Phase 6."));
+                Manager.Push(new Editor.EditorScreen());
                 break;
             case "PROFILE":
                 Manager.Push(new ProfileScreen());
