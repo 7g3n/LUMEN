@@ -8,9 +8,15 @@ namespace Lumen.Game.Screens;
 /// <summary>The hub (spec §14). Player name and Rating sit above the actions.</summary>
 public sealed class MainMenuScreen : Screen
 {
-    private static readonly string[] Actions =
+    /// <summary>
+    /// What the hub offers, in order. Public because the order is a fact about the screen
+    /// that other things legitimately need — a walkthrough that counts key presses to reach
+    /// an item should ask where the item is rather than hard-code a number that goes stale
+    /// the next time somebody adds a menu entry.
+    /// </summary>
+    public static readonly string[] Actions =
     {
-        "PLAY", "SONG SELECT", "EDITOR", "PROFILE", "REPLAYS", "HOW TO PLAY", "SETTINGS", "EXIT",
+        "PLAY", "SONG SELECT", "TOURNAMENT", "EDITOR", "PROFILE", "REPLAYS", "HOW TO PLAY", "SETTINGS", "EXIT",
     };
 
     private readonly MenuList _menu = new(Actions);
@@ -51,6 +57,9 @@ public sealed class MainMenuScreen : Screen
             case "PLAY":
             case "SONG SELECT":
                 OpenSongSelect();
+                break;
+            case "TOURNAMENT":
+                Manager.Push(new Tournaments.TournamentHubScreen());
                 break;
             case "EDITOR":
                 Manager.Push(new Editor.EditorScreen());

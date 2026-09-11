@@ -27,7 +27,7 @@ public class TieBreakerTests
             Id = Guid.NewGuid(),
             MatchId = MatchId,
             PlayerId = player,
-            ChartId = Guid.NewGuid(),
+            ChartKey = "chart-key",
             GameIndex = gameIndex,
             Score = score,
             Accuracy = accuracy,

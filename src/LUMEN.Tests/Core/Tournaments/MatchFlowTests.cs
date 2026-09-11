@@ -192,7 +192,7 @@ public class MatchFlowTests
     {
         TournamentMatch ready = Match(MatchStatus.Ready) with
         {
-            SelectedChartIds = new[] { Guid.NewGuid() },
+            SelectedChartKeys = new[] { "chart-key" },
         };
 
         MatchFlow.IsPlayable(ready).Should().BeTrue();
@@ -203,7 +203,7 @@ public class MatchFlowTests
     {
         TournamentMatch waiting = Match(MatchStatus.Waiting) with
         {
-            SelectedChartIds = new[] { Guid.NewGuid() },
+            SelectedChartKeys = new[] { "chart-key" },
         };
 
         MatchFlow.IsPlayable(waiting).Should().BeFalse();

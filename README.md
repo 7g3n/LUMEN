@@ -126,7 +126,8 @@ another machine, Settings → Data writes the lot to a single backup file.
 
 - **遊ぶ / Play** — Tap and Hold notes, five judgement tiers, frame pacing verified up to 240 Hz, timing calibration
 - **競う / Compete** — a total Rating and per-play PP, personal bests, local rankings, achievements, and replays that reproduce a play exactly
-- **作る / Create** — a chart editor with total undo, a beat grid that follows tempo changes, Test Play, and `.lumen` package export
+- **作る / Create** — a chart editor with total undo, a beat grid that follows tempo changes, Test Play, and `.lumen` package export. Drag a `.wav` or `.mp3` onto it to attach the song.
+- **大会 / Tournament** — run a competition on one machine: single or double elimination, or a score attack. Brackets, seeding, byes, tie-breaks and an audit log of every decision. Tournament results are recorded separately and never touch your Rating.
 
 ---
 

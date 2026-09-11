@@ -25,7 +25,7 @@ public class TournamentServiceTests : IDisposable
     private Database _db;
     private TournamentService _service;
 
-    private readonly Guid _chart = Guid.NewGuid();
+    private const string Chart = "chart-key-first-light";
 
     public TournamentServiceTests()
     {
@@ -74,11 +74,11 @@ public class TournamentServiceTests : IDisposable
         return ids;
     }
 
-    private void AddChart(Tournament tournament, Guid? chartId = null) =>
+    private void AddChart(Tournament tournament, string? chartKey = null) =>
         _service.AddSong(tournament.Id, new TournamentSong
         {
             TournamentId = tournament.Id,
-            ChartId = chartId ?? _chart,
+            ChartKey = chartKey ?? Chart,
             Title = "First Light",
             DifficultyName = "NORMAL",
             Level = 3.5,
@@ -92,7 +92,7 @@ public class TournamentServiceTests : IDisposable
             Id = Guid.NewGuid(),
             MatchId = match.Id,
             PlayerId = player,
-            ChartId = match.SelectedChartIds.FirstOrDefault(),
+            ChartKey = match.SelectedChartKeys.FirstOrDefault() ?? Chart,
             GameIndex = gameIndex,
             Score = score,
             Accuracy = score / 10_000.0,
@@ -104,7 +104,7 @@ public class TournamentServiceTests : IDisposable
     /// <summary>Plays one match through, with <paramref name="winner"/> scoring higher.</summary>
     private void Settle(TournamentMatch match, Guid winner)
     {
-        _service.SelectSongs(match.Id, new[] { _chart });
+        _service.SelectSongs(match.Id, new[] { Chart });
         _service.MarkReady(match.Id);
         _service.StartMatch(match.Id);
 
@@ -220,7 +220,7 @@ public class TournamentServiceTests : IDisposable
     }
 
     [Fact]
-    public void A_tournament_with_no_charts_cannot_start()
+    public void A_tournament_with_noCharts_cannot_start()
     {
         Tournament tournament = Create();
         Enter(tournament, 4);
@@ -299,7 +299,7 @@ public class TournamentServiceTests : IDisposable
         _service.Start(tournament.Id);
 
         TournamentMatch match = _service.Matches(tournament.Id).Single();
-        _service.SelectSongs(match.Id, new[] { _chart });
+        _service.SelectSongs(match.Id, new[] { Chart });
         _service.MarkReady(match.Id);
         _service.StartMatch(match.Id);
 
@@ -312,7 +312,7 @@ public class TournamentServiceTests : IDisposable
     }
 
     [Fact]
-    public void A_match_cannot_be_started_before_a_chart_is_chosen()
+    public void A_match_cannot_be_started_before_aChart_is_chosen()
     {
         Tournament tournament = Create();
         Enter(tournament, 2);
@@ -336,7 +336,7 @@ public class TournamentServiceTests : IDisposable
         _service.Start(tournament.Id);
 
         TournamentMatch match = _service.Matches(tournament.Id).Single();
-        _service.SelectSongs(match.Id, new[] { _chart });
+        _service.SelectSongs(match.Id, new[] { Chart });
         _service.MarkReady(match.Id);
         _service.StartMatch(match.Id);
 
@@ -356,7 +356,7 @@ public class TournamentServiceTests : IDisposable
         _service.Start(tournament.Id);
 
         TournamentMatch match = _service.Matches(tournament.Id).Single();
-        _service.SelectSongs(match.Id, new[] { _chart });
+        _service.SelectSongs(match.Id, new[] { Chart });
         _service.MarkReady(match.Id);
         _service.StartMatch(match.Id);
 
@@ -453,7 +453,7 @@ public class TournamentServiceTests : IDisposable
 
         foreach ((TournamentMatch match, int i) in _service.Matches(tournament.Id).Select((m, i) => (m, i)))
         {
-            _service.SelectSongs(match.Id, new[] { _chart });
+            _service.SelectSongs(match.Id, new[] { Chart });
             _service.MarkReady(match.Id);
             _service.StartMatch(match.Id);
 
@@ -546,7 +546,7 @@ public class TournamentServiceTests : IDisposable
         _service.Start(tournament.Id);
 
         TournamentMatch match = _service.Matches(tournament.Id).Single();
-        _service.SelectSongs(match.Id, new[] { _chart });
+        _service.SelectSongs(match.Id, new[] { Chart });
         _service.MarkReady(match.Id);
         _service.StartMatch(match.Id);
 

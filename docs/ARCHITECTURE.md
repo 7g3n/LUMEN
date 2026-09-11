@@ -123,6 +123,26 @@ atomic rename over target. A kill at any point leaves the previous good file int
 - `ValidateChart()` runs before every export (§52).
 - Difficulty analysis → estimated level *and* the PP skill-attribute vector (§53).
 
+## Tournaments
+
+- Domain in `LUMEN.Core/Tournaments`: rules, bracket, match state machine, tie-break.
+  Nothing there knows about storage, which is what makes a remote implementation a matter
+  of writing another `ITournamentRepository` rather than rewriting the rules.
+- **Kept apart from normal play.** Tournament results live in their own tables; nothing
+  references `scores` and nothing in `scores` references them. `AffectsNormalRating`
+  defaults to false. A tournament is a separate competition, and entering one must not move
+  somebody's everyday Rating because an organiser picked a hard chart.
+- Charts are referenced by `ChartKey` — the hash of the chart's own contents — rather than
+  by an id. That is the identifier the rest of the game uses, and because it changes when a
+  chart is edited it is also exactly the "was this the chart we agreed on" check a
+  tournament needs.
+- `MatchFlow` refuses a jump from Waiting to Complete: the states are the audit trail.
+- Only confirmed results decide anything. An unconfirmed result is a claim.
+- Every action writes a `tournament_events` row, with the build and the rule hash in force.
+- `TournamentArchive` exports a whole event — bracket, results and log — as one
+  `.lumentourney` ZIP of logical JSON, so it outlives the schema.
+- Screens go through `TournamentService` and never write to the tables directly.
+
 ## Distribution (§72)
 
 - `dotnet publish -c Release -r win-x64 --self-contained -p:PublishSingleFile=true`

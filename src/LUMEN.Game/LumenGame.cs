@@ -121,6 +121,7 @@ internal sealed class LumenGame : Microsoft.Xna.Framework.Game
         var replays = new ReplayRepository(_db, _paths.Replays);
         var achievements = new AchievementRepository(_db);
         var backups = new BackupService(_db, _paths, appMeta, library);
+        var tournamentStore = new TournamentRepository(_db);
 
         // Debris from a write that was interrupted by a kill or a power cut (§74).
         int swept = new[] { _paths.Songs, _paths.ChartsLocal, _paths.ChartsImported, _paths.Replays }
@@ -151,6 +152,8 @@ internal sealed class LumenGame : Microsoft.Xna.Framework.Game
             Achievements = new AchievementService(
                 scores, profiles, library.Charts, achievements),
             Backups = backups,
+            Tournaments = new Lumen.Data.Tournaments.TournamentService(tournamentStore),
+            TournamentStore = tournamentStore,
             Frames = _profiler,
             AppMeta = appMeta,
             Display = _display,
@@ -274,6 +277,12 @@ internal sealed class LumenGame : Microsoft.Xna.Framework.Game
 
         Lumen.Game.Content.TestContent.Installed test = Lumen.Game.Content.TestContent.EnsureInstalled(_paths);
 
+        // A demo tournament, so the dashboard and its bracket have something to draw.
+        // Built the same way the screens build one, through the service, rather than
+        // poked into the tables — a picture of a state the game cannot actually reach
+        // would be worse than no picture.
+        Guid demoTournament = EnsureDemoTournament(test);
+
         (string name, Screen screen)[] shots =
         {
             ("1-setup", new SetupScreen()),
@@ -289,6 +298,10 @@ internal sealed class LumenGame : Microsoft.Xna.Framework.Game
             ("7-replays", new ReplaysScreen()),
             ("8-calibration", new CalibrationScreen()),
             ("9-tutorial", new TutorialScreen(onFinished: () => { })),
+            ("12-tournament", new Screens.Tournaments.TournamentHubScreen()),
+            ("13-tournament-new", new Screens.Tournaments.CreateTournamentScreen()),
+            ("14-tournament-rules", new Screens.Tournaments.TournamentRulesScreen()),
+            ("15-tournament-bracket", new Screens.Tournaments.TournamentDashboardScreen(demoTournament)),
         };
 
         using var target = new RenderTarget2D(GraphicsDevice, _display.Width, _display.Height);
@@ -301,6 +314,66 @@ internal sealed class LumenGame : Microsoft.Xna.Framework.Game
         }
 
         CapturePlay(target, dir, test);
+    }
+
+    /// <summary>
+    /// A four-player tournament on the practice chart, for the dashboard shot. Reuses one
+    /// that is already there rather than piling up a new one on every capture.
+    /// </summary>
+    private Guid EnsureDemoTournament(Lumen.Game.Content.TestContent.Installed test)
+    {
+        Lumen.Core.Tournaments.Tournament? existing = _context.Tournaments.All()
+            .FirstOrDefault(t => t.Name == "Demo Cup");
+
+        // Only a drawn one is worth reusing. A draft left behind by a run that failed
+        // part-way would be photographed as an empty bracket, which is a picture of a
+        // mistake rather than of the game.
+        if (existing is { Status: Lumen.Core.Tournaments.TournamentStatus.Running })
+        {
+            return existing.Id;
+        }
+
+        if (existing is not null)
+        {
+            _context.TournamentStore.Delete(existing.Id);
+        }
+
+        _context.Library.Scan();
+
+        Lumen.Core.Library.LibraryChart? chart = _context.Library.Charts.All().FirstOrDefault();
+        if (chart is null)
+        {
+            return Guid.Empty;
+        }
+
+        Lumen.Core.Tournaments.Tournament tournament = _context.Tournaments.Create(
+            "Demo Cup",
+            Lumen.Core.Tournaments.TournamentFormat.SingleElimination,
+            Lumen.Core.Tournaments.TournamentRules.Official,
+            "LUMEN");
+
+        int seed = 1;
+        foreach (string name in new[] { "Nagisa", "Rin", "Kaito", "Mei" })
+        {
+            Core.Profiles.Profile profile =
+                _context.Profiles.GetAll().FirstOrDefault(p => p.DisplayName == name)
+                ?? _context.Profiles.Create(name);
+
+            _context.Tournaments.AddParticipant(tournament.Id, profile.PlayerId, name, seed++);
+        }
+
+        _context.Tournaments.AddSong(tournament.Id, new Lumen.Core.Tournaments.TournamentSong
+        {
+            TournamentId = tournament.Id,
+            ChartKey = chart.ChartKey,
+            Title = chart.Meta.Title,
+            DifficultyName = chart.Meta.DifficultyName,
+            Level = chart.Level,
+            ChartHash = chart.ChartKey,
+        });
+
+        _context.Tournaments.Start(tournament.Id);
+        return tournament.Id;
     }
 
     /// <summary>

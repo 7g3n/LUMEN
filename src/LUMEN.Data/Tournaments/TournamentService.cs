@@ -162,16 +162,16 @@ public sealed class TournamentService
 
         _repo.AddSong(song with { TournamentId = tournamentId });
         Record(tournamentId, TournamentEventTypes.SongAdded, null,
-            new { chartId = song.ChartId, title = song.Title, chartHash = song.ChartHash });
+            new { chartKey = song.ChartKey, title = song.Title, chartHash = song.ChartHash });
     }
 
-    public void RemoveSong(Guid tournamentId, Guid chartId)
+    public void RemoveSong(Guid tournamentId, string chartKey)
     {
         Tournament tournament = Require(tournamentId);
         RequireDraft(tournament, "change the song pool");
 
-        _repo.RemoveSong(tournamentId, chartId);
-        Record(tournamentId, TournamentEventTypes.SongRemoved, null, new { chartId });
+        _repo.RemoveSong(tournamentId, chartKey);
+        Record(tournamentId, TournamentEventTypes.SongRemoved, null, new { chartKey });
     }
 
     // --- starting ---
@@ -242,21 +242,21 @@ public sealed class TournamentService
 
     // --- running a match ---
 
-    public void SelectSongs(Guid matchId, IReadOnlyList<Guid> chartIds, Guid? actor = null)
+    public void SelectSongs(Guid matchId, IReadOnlyList<string> chartKeys, Guid? actor = null)
     {
         TournamentMatch match = RequireMatch(matchId);
 
-        if (chartIds.Count == 0)
+        if (chartKeys.Count == 0)
         {
-            throw new ArgumentException("A match needs at least one chart.", nameof(chartIds));
+            throw new ArgumentException("A match needs at least one chart.", nameof(chartKeys));
         }
 
         TournamentMatch moved = MatchFlow.Transition(
-            match with { SelectedChartIds = chartIds.ToArray() }, MatchStatus.SongSelected);
+            match with { SelectedChartKeys = chartKeys.ToArray() }, MatchStatus.SongSelected);
 
         _repo.UpdateMatch(moved);
         Record(match.TournamentId, TournamentEventTypes.SongSelected, actor,
-            new { matchId, chartIds });
+            new { matchId, chartKeys });
     }
 
     /// <summary>Both players have confirmed; the match may be played.</summary>
@@ -323,7 +323,7 @@ public sealed class TournamentService
         Record(match.TournamentId, TournamentEventTypes.ResultSubmitted, result.PlayerId, new
         {
             matchId = match.Id,
-            chartId = result.ChartId,
+            chartKey = result.ChartKey,
             score = result.Score,
             accuracy = result.Accuracy,
             chartHash = result.ChartHash,

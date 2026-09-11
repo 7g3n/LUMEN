@@ -82,7 +82,7 @@ public sealed record TournamentSong
 {
     public required Guid TournamentId { get; init; }
 
-    public required Guid ChartId { get; init; }
+    public required string ChartKey { get; init; }
 
     /// <summary>Title and difficulty as they were when the pool was built.</summary>
     public required string Title { get; init; }
@@ -146,7 +146,7 @@ public sealed record TournamentMatch
     public Guid? WinnerPlayerId { get; init; }
 
     /// <summary>Charts chosen for this match, in playing order.</summary>
-    public IReadOnlyList<Guid> SelectedChartIds { get; init; } = Array.Empty<Guid>();
+    public IReadOnlyList<string> SelectedChartKeys { get; init; } = Array.Empty<string>();
 
     public int BestOf { get; init; } = 1;
 
@@ -188,7 +188,7 @@ public sealed record TournamentMatchResult
 
     public required Guid PlayerId { get; init; }
 
-    public required Guid ChartId { get; init; }
+    public required string ChartKey { get; init; }
 
     /// <summary>Which chart of a best-of series this was, 0-based.</summary>
     public int GameIndex { get; init; }

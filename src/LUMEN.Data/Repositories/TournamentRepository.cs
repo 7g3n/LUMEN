@@ -221,16 +221,16 @@ public sealed class TournamentRepository : ITournamentRepository
         cmd.CommandText =
             """
             INSERT INTO tournament_songs
-                (tournament_id, chart_id, title, difficulty_name, level, chart_hash, audio_hash, category)
-            VALUES ($tid, $cid, $title, $diff, $level, $chash, $ahash, $category)
-            ON CONFLICT (tournament_id, chart_id) DO UPDATE SET
+                (tournament_id, chart_key, title, difficulty_name, level, chart_hash, audio_hash, category)
+            VALUES ($tid, $ckey, $title, $diff, $level, $chash, $ahash, $category)
+            ON CONFLICT (tournament_id, chart_key) DO UPDATE SET
                 title = excluded.title, difficulty_name = excluded.difficulty_name,
                 level = excluded.level, chart_hash = excluded.chart_hash,
                 audio_hash = excluded.audio_hash, category = excluded.category;
             """;
 
         cmd.Parameters.AddWithValue("$tid", Id(song.TournamentId));
-        cmd.Parameters.AddWithValue("$cid", Id(song.ChartId));
+        cmd.Parameters.AddWithValue("$ckey", song.ChartKey);
         cmd.Parameters.AddWithValue("$title", song.Title);
         cmd.Parameters.AddWithValue("$diff", song.DifficultyName);
         cmd.Parameters.AddWithValue("$level", song.Level);
@@ -240,12 +240,12 @@ public sealed class TournamentRepository : ITournamentRepository
         cmd.ExecuteNonQuery();
     }
 
-    public void RemoveSong(Guid tournamentId, Guid chartId)
+    public void RemoveSong(Guid tournamentId, string chartKey)
     {
         using SqliteCommand cmd = _db.CreateCommand();
-        cmd.CommandText = "DELETE FROM tournament_songs WHERE tournament_id = $tid AND chart_id = $cid;";
+        cmd.CommandText = "DELETE FROM tournament_songs WHERE tournament_id = $tid AND chart_key = $ckey;";
         cmd.Parameters.AddWithValue("$tid", Id(tournamentId));
-        cmd.Parameters.AddWithValue("$cid", Id(chartId));
+        cmd.Parameters.AddWithValue("$ckey", chartKey);
         cmd.ExecuteNonQuery();
     }
 
@@ -262,7 +262,7 @@ public sealed class TournamentRepository : ITournamentRepository
             list.Add(new TournamentSong
             {
                 TournamentId = tournamentId,
-                ChartId = Guid.Parse(r.GetString(r.GetOrdinal("chart_id"))),
+                ChartKey = r.GetString(r.GetOrdinal("chart_key")),
                 Title = r.GetString(r.GetOrdinal("title")),
                 DifficultyName = r.GetString(r.GetOrdinal("difficulty_name")),
                 Level = r.GetDouble(r.GetOrdinal("level")),
@@ -330,7 +330,7 @@ public sealed class TournamentRepository : ITournamentRepository
             """
             INSERT INTO tournament_matches
                 (match_id, tournament_id, round_id, slot, player1_id, player2_id, status,
-                 winner_player_id, chart_ids, best_of, started_utc, completed_utc)
+                 winner_player_id, chart_keys, best_of, started_utc, completed_utc)
             VALUES ($id, $tid, $rid, $slot, $p1, $p2, $status, $winner, $charts, $bestOf, $started, $completed);
             """;
 
@@ -402,7 +402,7 @@ public sealed class TournamentRepository : ITournamentRepository
             """
             UPDATE tournament_matches SET
                 round_id = $rid, slot = $slot, player1_id = $p1, player2_id = $p2,
-                status = $status, winner_player_id = $winner, chart_ids = $charts,
+                status = $status, winner_player_id = $winner, chart_keys = $charts,
                 best_of = $bestOf, started_utc = $started, completed_utc = $completed
             WHERE match_id = $id;
             """;
@@ -421,7 +421,7 @@ public sealed class TournamentRepository : ITournamentRepository
         cmd.Parameters.AddWithValue("$p2", (object?)Id(m.Player2Id) ?? DBNull.Value);
         cmd.Parameters.AddWithValue("$status", (int)m.Status);
         cmd.Parameters.AddWithValue("$winner", (object?)Id(m.WinnerPlayerId) ?? DBNull.Value);
-        cmd.Parameters.AddWithValue("$charts", string.Join(",", m.SelectedChartIds.Select(Id)));
+        cmd.Parameters.AddWithValue("$charts", string.Join("", m.SelectedChartKeys));
         cmd.Parameters.AddWithValue("$bestOf", m.BestOf);
         cmd.Parameters.AddWithValue("$started", (object?)Utc(m.StartedUtc) ?? DBNull.Value);
         cmd.Parameters.AddWithValue("$completed", (object?)Utc(m.CompletedUtc) ?? DBNull.Value);
@@ -429,7 +429,7 @@ public sealed class TournamentRepository : ITournamentRepository
 
     private static TournamentMatch ReadMatch(SqliteDataReader r)
     {
-        string charts = r.GetString(r.GetOrdinal("chart_ids"));
+        string charts = r.GetString(r.GetOrdinal("chart_keys"));
 
         return new TournamentMatch
         {
@@ -441,9 +441,11 @@ public sealed class TournamentRepository : ITournamentRepository
             Player2Id = GuidOrNull(r, "player2_id"),
             Status = (MatchStatus)r.GetInt32(r.GetOrdinal("status")),
             WinnerPlayerId = GuidOrNull(r, "winner_player_id"),
-            SelectedChartIds = charts.Length == 0
-                ? Array.Empty<Guid>()
-                : charts.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(Guid.Parse).ToArray(),
+            // Unit separator rather than a comma: a chart key is opaque text, and a
+            // delimiter it could itself contain would silently split one key into two.
+            SelectedChartKeys = charts.Length == 0
+                ? Array.Empty<string>()
+                : charts.Split('', StringSplitOptions.RemoveEmptyEntries),
             BestOf = r.GetInt32(r.GetOrdinal("best_of")),
             StartedUtc = ParseUtcOrNull(r, "started_utc"),
             CompletedUtc = ParseUtcOrNull(r, "completed_utc"),
@@ -464,10 +466,10 @@ public sealed class TournamentRepository : ITournamentRepository
         cmd.CommandText =
             """
             INSERT INTO tournament_match_results
-                (result_id, match_id, tournament_id, player_id, chart_id, game_index, score,
+                (result_id, match_id, tournament_id, player_id, chart_key, game_index, score,
                  accuracy, max_combo, perfect, great, good, bad, miss, pp, full_combo,
                  all_perfect, replay_id, chart_hash, game_version, rule_hash, submitted_utc, confirmed_utc)
-            VALUES ($id, $mid, $tid, $pid, $cid, $game, $score, $accuracy, $combo, $perfect,
+            VALUES ($id, $mid, $tid, $pid, $ckey, $game, $score, $accuracy, $combo, $perfect,
                     $great, $good, $bad, $miss, $pp, $fc, $ap, $replay, $chash, $version,
                     $rhash, $submitted, $confirmed);
             """;
@@ -476,7 +478,7 @@ public sealed class TournamentRepository : ITournamentRepository
         cmd.Parameters.AddWithValue("$mid", Id(result.MatchId));
         cmd.Parameters.AddWithValue("$tid", Id(match.TournamentId));
         cmd.Parameters.AddWithValue("$pid", Id(result.PlayerId));
-        cmd.Parameters.AddWithValue("$cid", Id(result.ChartId));
+        cmd.Parameters.AddWithValue("$ckey", result.ChartKey);
         cmd.Parameters.AddWithValue("$game", result.GameIndex);
         cmd.Parameters.AddWithValue("$score", result.Score);
         cmd.Parameters.AddWithValue("$accuracy", result.Accuracy);
@@ -529,7 +531,7 @@ public sealed class TournamentRepository : ITournamentRepository
                 Id = Guid.Parse(r.GetString(r.GetOrdinal("result_id"))),
                 MatchId = Guid.Parse(r.GetString(r.GetOrdinal("match_id"))),
                 PlayerId = Guid.Parse(r.GetString(r.GetOrdinal("player_id"))),
-                ChartId = Guid.Parse(r.GetString(r.GetOrdinal("chart_id"))),
+                ChartKey = r.GetString(r.GetOrdinal("chart_key")),
                 GameIndex = r.GetInt32(r.GetOrdinal("game_index")),
                 Score = r.GetInt64(r.GetOrdinal("score")),
                 Accuracy = r.GetDouble(r.GetOrdinal("accuracy")),

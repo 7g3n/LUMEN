@@ -59,6 +59,7 @@ public class EditorAudioDropTests : IDisposable
         var session = new Session(_db, profiles, appMeta);
         var library = new LibraryService(new LibraryRepository(_db), _paths);
         var scores = new ScoreRepository(_db, BalanceConfig.Default);
+        var tournamentStore = new TournamentRepository(_db);
 
         _context = new GameContext
         {
@@ -74,6 +75,8 @@ public class EditorAudioDropTests : IDisposable
             Achievements = new AchievementService(
                 scores, profiles, library.Charts, new AchievementRepository(_db)),
             Backups = new BackupService(_db, _paths, appMeta, library),
+            Tournaments = new Lumen.Data.Tournaments.TournamentService(tournamentStore),
+            TournamentStore = tournamentStore,
             Frames = new Lumen.Game.Engine.FrameProfiler(),
             AppMeta = appMeta,
             Display = new DisplayConfig(),

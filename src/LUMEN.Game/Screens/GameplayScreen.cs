@@ -7,6 +7,7 @@ using Lumen.Core.Achievements;
 using Lumen.Core.Gameplay;
 using Lumen.Core.Replays;
 using Lumen.Core.Settings;
+using Lumen.Core.Tournaments;
 using Lumen.Game.Content;
 using Lumen.Game.Engine;
 using Lumen.Game.Input;
@@ -73,19 +74,38 @@ public sealed class GameplayScreen : Screen
     private int _hudCombo = -1;
     private string _hudComboText = "0";
 
+    /// <param name="tournamentRules">
+    /// Set when this play is a tournament match. Two things follow from it, and both
+    /// matter: the rules are enforced rather than offered — a tournament that forbids
+    /// pausing has to actually refuse one — and the result does not touch the player's
+    /// normal scores, PP or Rating. A tournament is a separate competition, and entering
+    /// one should not move somebody's everyday rating because an organiser picked a hard
+    /// chart under rules they did not choose.
+    /// </param>
     public GameplayScreen(string chartPath, string? audioPath = null,
                           bool autoPlay = false, Action<PlayResult>? onComplete = null,
-                          Replay? watch = null)
+                          Replay? watch = null,
+                          TournamentRules? tournamentRules = null)
     {
         _chartPath = chartPath;
         _audioPathOverride = audioPath;
         _autoPlay = autoPlay;
         _onComplete = onComplete;
         _watching = watch;
+        _tournamentRules = tournamentRules;
     }
+
+    private readonly TournamentRules? _tournamentRules;
+
+    /// <summary>A line shown briefly over the playfield — a refused pause, say.</summary>
+    private string? _status;
+    private double _statusUntilMs;
 
     /// <summary>True while a recorded play is being watched rather than played (§41).</summary>
     private bool IsWatching => _watching is not null;
+
+    /// <summary>True while this play is a tournament match.</summary>
+    private bool IsTournamentPlay => _tournamentRules is not null;
 
     public override Color BackgroundColor => Theme.Ground;
 
@@ -197,8 +217,20 @@ public sealed class GameplayScreen : Screen
 
         if (input.Pressed(Keys.Escape))
         {
+            // A tournament that forbids pausing refuses it here rather than trusting the
+            // player not to press the key. The pause menu is also where Restart lives, so
+            // the two rules are enforced by the same door.
+            if (_tournamentRules is { PauseAllowed: false })
+            {
+                _status = "Pausing is not allowed in this tournament.";
+                _statusUntilMs = _conductor.SongTimeMs + 2000;
+                return;
+            }
+
             _conductor.Pause();
-            _pauseMenu = new MenuList("RESUME", "RESTART", "QUIT");
+            _pauseMenu = _tournamentRules is { RetryAllowed: false }
+                ? new MenuList("RESUME", "FORFEIT")
+                : new MenuList("RESUME", "RESTART", "QUIT");
             _phase = Phase.Paused;
             return;
         }
@@ -236,12 +268,31 @@ public sealed class GameplayScreen : Screen
             choice = 0;
         }
 
+        if (choice == 0)
+        {
+            _conductor.Play();
+            _phase = Phase.Playing;
+            return;
+        }
+
+        // A tournament match has a shorter menu, because restarting is not on offer.
+        // Leaving one is forfeiting it, and it hands the caller the play as it stood.
+        if (IsTournamentPlay)
+        {
+            if (choice == 1)
+            {
+                Log.Info("tournament match forfeited");
+                _session.Finish();
+                _track.Pause();
+                _phase = Phase.Finished;
+                _onComplete?.Invoke(PlayResult.From(_session));
+            }
+
+            return;
+        }
+
         switch (choice)
         {
-            case 0:
-                _conductor.Play();
-                _phase = Phase.Playing;
-                break;
             case 1:
                 Manager.Replace(new GameplayScreen(_chartPath, _audioPathOverride));
                 break;
@@ -256,6 +307,15 @@ public sealed class GameplayScreen : Screen
         // Watching a replay is not playing it: nothing is scored, recorded or unlocked.
         if (IsWatching)
         {
+            return null;
+        }
+
+        // A tournament match is scored by the tournament, in its own tables. Saving it here
+        // as well would feed an organiser's chart choice into the player's Rating, which is
+        // the one thing the two systems are kept apart to prevent.
+        if (IsTournamentPlay)
+        {
+            Log.Info("tournament play: not recorded against the player's normal scores");
             return null;
         }
 
@@ -527,6 +587,19 @@ public sealed class GameplayScreen : Screen
         {
             ui.Text(ui.Mono(Theme.Label), "SILENT (no audio device)",
                 new Rectangle(16, ui.Height - 30, 300, 16), Theme.Bad);
+        }
+
+        if (IsTournamentPlay)
+        {
+            ui.Text(ui.Mono(Theme.Label), "TOURNAMENT",
+                new Rectangle(16, 24, 200, 16), Theme.AccentBright);
+        }
+
+        if (_status is { Length: > 0 } && now < _statusUntilMs)
+        {
+            ui.Text(ui.Body(Theme.Body), _status,
+                new Rectangle(l.FieldX, l.HitLineY + 70, l.FieldWidth, 20),
+                Theme.Bad, TextAlign.Center);
         }
     }
 

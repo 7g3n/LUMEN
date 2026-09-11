@@ -41,7 +41,7 @@ public interface ITournamentRepository
 
     void AddSong(TournamentSong song);
 
-    void RemoveSong(Guid tournamentId, Guid chartId);
+    void RemoveSong(Guid tournamentId, string chartKey);
 
     IReadOnlyList<TournamentSong> Songs(Guid tournamentId);
 

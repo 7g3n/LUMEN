@@ -78,7 +78,7 @@ public static class MatchFlow
     /// </summary>
     public static bool IsPlayable(TournamentMatch match) =>
         match.Status is MatchStatus.Ready or MatchStatus.Playing
-        && match.SelectedChartIds.Count > 0
+        && match.SelectedChartKeys.Count > 0
         && (match.HasBothPlayers || match.Player1Id is not null);
 
     /// <summary>

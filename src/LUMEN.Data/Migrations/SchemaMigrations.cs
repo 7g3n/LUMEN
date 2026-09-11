@@ -232,14 +232,14 @@ public static class SchemaMigrations
             -- The hashes are what make "the chart that was played" a checkable claim.
             CREATE TABLE tournament_songs (
                 tournament_id   TEXT NOT NULL REFERENCES tournaments (tournament_id) ON DELETE CASCADE,
-                chart_id        TEXT NOT NULL,
+                chart_key       TEXT NOT NULL,
                 title           TEXT NOT NULL DEFAULT '',
                 difficulty_name TEXT NOT NULL DEFAULT '',
                 level           REAL NOT NULL DEFAULT 0,
                 chart_hash      TEXT NOT NULL DEFAULT '',
                 audio_hash      TEXT NOT NULL DEFAULT '',
                 category        TEXT NOT NULL DEFAULT '',
-                PRIMARY KEY (tournament_id, chart_id)
+                PRIMARY KEY (tournament_id, chart_key)
             ) WITHOUT ROWID;
 
             CREATE TABLE tournament_rounds (
@@ -262,7 +262,7 @@ public static class SchemaMigrations
                 player2_id      TEXT,
                 status          INTEGER NOT NULL DEFAULT 0,
                 winner_player_id TEXT,
-                chart_ids       TEXT NOT NULL DEFAULT '',
+                chart_keys      TEXT NOT NULL DEFAULT '',
                 best_of         INTEGER NOT NULL DEFAULT 1,
                 started_utc     TEXT,
                 completed_utc   TEXT
@@ -277,7 +277,7 @@ public static class SchemaMigrations
                 match_id      TEXT NOT NULL REFERENCES tournament_matches (match_id) ON DELETE CASCADE,
                 tournament_id TEXT NOT NULL REFERENCES tournaments (tournament_id) ON DELETE CASCADE,
                 player_id     TEXT NOT NULL,
-                chart_id      TEXT NOT NULL,
+                chart_key     TEXT NOT NULL,
                 game_index    INTEGER NOT NULL DEFAULT 0,
                 score         INTEGER NOT NULL DEFAULT 0,
                 accuracy      REAL NOT NULL DEFAULT 0,
@@ -312,6 +312,81 @@ public static class SchemaMigrations
             ) WITHOUT ROWID;
 
             CREATE INDEX ix_events_tournament ON tournament_events (tournament_id, timestamp_utc);
+            """),
+        // v7 first shipped in development with the chart columns keyed by a Guid that no
+        // other table in the game uses. Charts are identified everywhere else by their
+        // chart key — a hash of the chart's own contents — which is both the identifier
+        // that exists and, because it changes when a chart is edited, exactly the "was this
+        // the chart we agreed on" check a tournament needs.
+        //
+        // v7 above now creates the corrected tables, so a fresh database is right in one
+        // step. This repairs the ones that already took the earlier shape. Dropping rather
+        // than migrating the rows is safe and deliberate: tournaments have never been in a
+        // release, so no database anywhere holds a tournament worth keeping, and inventing
+        // a chart key for rows that never had one would be fabricating data.
+        Migration.Sql(8, "tournaments_chart_key",
+            """
+            DROP TABLE IF EXISTS tournament_match_results;
+            DROP TABLE IF EXISTS tournament_matches;
+            DROP TABLE IF EXISTS tournament_songs;
+
+            CREATE TABLE tournament_songs (
+                tournament_id   TEXT NOT NULL REFERENCES tournaments (tournament_id) ON DELETE CASCADE,
+                chart_key       TEXT NOT NULL,
+                title           TEXT NOT NULL DEFAULT '',
+                difficulty_name TEXT NOT NULL DEFAULT '',
+                level           REAL NOT NULL DEFAULT 0,
+                chart_hash      TEXT NOT NULL DEFAULT '',
+                audio_hash      TEXT NOT NULL DEFAULT '',
+                category        TEXT NOT NULL DEFAULT '',
+                PRIMARY KEY (tournament_id, chart_key)
+            ) WITHOUT ROWID;
+
+            CREATE TABLE tournament_matches (
+                match_id        TEXT PRIMARY KEY,
+                tournament_id   TEXT NOT NULL REFERENCES tournaments (tournament_id) ON DELETE CASCADE,
+                round_id        TEXT NOT NULL REFERENCES tournament_rounds (round_id) ON DELETE CASCADE,
+                slot            INTEGER NOT NULL,
+                player1_id      TEXT,
+                player2_id      TEXT,
+                status          INTEGER NOT NULL DEFAULT 0,
+                winner_player_id TEXT,
+                chart_keys      TEXT NOT NULL DEFAULT '',
+                best_of         INTEGER NOT NULL DEFAULT 1,
+                started_utc     TEXT,
+                completed_utc   TEXT
+            ) WITHOUT ROWID;
+
+            CREATE INDEX ix_matches_tournament ON tournament_matches (tournament_id, round_id, slot);
+
+            CREATE TABLE tournament_match_results (
+                result_id     TEXT PRIMARY KEY,
+                match_id      TEXT NOT NULL REFERENCES tournament_matches (match_id) ON DELETE CASCADE,
+                tournament_id TEXT NOT NULL REFERENCES tournaments (tournament_id) ON DELETE CASCADE,
+                player_id     TEXT NOT NULL,
+                chart_key     TEXT NOT NULL,
+                game_index    INTEGER NOT NULL DEFAULT 0,
+                score         INTEGER NOT NULL DEFAULT 0,
+                accuracy      REAL NOT NULL DEFAULT 0,
+                max_combo     INTEGER NOT NULL DEFAULT 0,
+                perfect       INTEGER NOT NULL DEFAULT 0,
+                great         INTEGER NOT NULL DEFAULT 0,
+                good          INTEGER NOT NULL DEFAULT 0,
+                bad           INTEGER NOT NULL DEFAULT 0,
+                miss          INTEGER NOT NULL DEFAULT 0,
+                pp            REAL NOT NULL DEFAULT 0,
+                full_combo    INTEGER NOT NULL DEFAULT 0,
+                all_perfect   INTEGER NOT NULL DEFAULT 0,
+                replay_id     TEXT,
+                chart_hash    TEXT NOT NULL DEFAULT '',
+                game_version  TEXT NOT NULL DEFAULT '',
+                rule_hash     TEXT NOT NULL DEFAULT '',
+                submitted_utc TEXT NOT NULL,
+                confirmed_utc TEXT
+            ) WITHOUT ROWID;
+
+            CREATE INDEX ix_results_match ON tournament_match_results (match_id, game_index);
+            CREATE INDEX ix_results_tournament ON tournament_match_results (tournament_id, player_id);
             """),
     };
 }

@@ -42,6 +42,20 @@ public sealed class GameContext
     public required BackupService Backups { get; init; }
 
     /// <summary>
+    /// Running tournaments (spec: Tournament Mode). Screens go through this and never
+    /// write to the tournament tables themselves: every action here also writes an audit
+    /// event and applies the match state machine, and a screen that reached past it would
+    /// produce a tournament whose log no longer explains it.
+    /// </summary>
+    public required Lumen.Data.Tournaments.TournamentService Tournaments { get; init; }
+
+    /// <summary>
+    /// The tournament store underneath that service. Screens need it for the one thing the
+    /// service deliberately does not offer — deleting a draft nobody ever ran.
+    /// </summary>
+    public required Lumen.Core.Tournaments.ITournamentRepository TournamentStore { get; init; }
+
+    /// <summary>
     /// Frame-time bookkeeping (§68). Screens reset it at the point a measurement should
     /// begin — gameplay does so when the countdown ends, so the numbers describe the song
     /// rather than the loading that preceded it.

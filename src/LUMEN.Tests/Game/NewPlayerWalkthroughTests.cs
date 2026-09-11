@@ -62,6 +62,7 @@ public class NewPlayerWalkthroughTests : IDisposable
         var session = new Session(_db, profiles, appMeta);
         var library = new LibraryService(new LibraryRepository(_db), _paths);
         var scores = new ScoreRepository(_db, BalanceConfig.Default);
+        var tournamentStore = new TournamentRepository(_db);
         var replays = new ReplayRepository(_db, _paths.Replays);
 
         _context = new GameContext
@@ -78,6 +79,8 @@ public class NewPlayerWalkthroughTests : IDisposable
             Achievements = new AchievementService(
                 scores, profiles, library.Charts, new AchievementRepository(_db)),
             Backups = new BackupService(_db, _paths, appMeta, library),
+            Tournaments = new Lumen.Data.Tournaments.TournamentService(tournamentStore),
+            TournamentStore = tournamentStore,
             Frames = new Lumen.Game.Engine.FrameProfiler(),
             AppMeta = appMeta,
             Display = new DisplayConfig(),
@@ -266,8 +269,11 @@ public class NewPlayerWalkthroughTests : IDisposable
         _context.Session.SetActive(_context.Profiles.Create("Nagisa"));
         _screens.SetRoot(new MainMenuScreen());
 
-        // Down to HOW TO PLAY, which sits after REPLAYS in the list.
-        for (int i = 0; i < 5; i++)
+        // Down to HOW TO PLAY, wherever the menu happens to put it.
+        int steps = Array.IndexOf(MainMenuScreen.Actions, "HOW TO PLAY");
+        steps.Should().BeGreaterThan(0, "the menu must still offer the tutorial");
+
+        for (int i = 0; i < steps; i++)
         {
             Press(Keys.Down);
         }
