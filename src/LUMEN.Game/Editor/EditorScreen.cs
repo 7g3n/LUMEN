@@ -1,4 +1,5 @@
 using Lumen.Audio;
+using Lumen.Data.Library;
 using Lumen.Core;
 using Lumen.Core.Charts;
 using Lumen.Core.Diagnostics;
@@ -26,7 +27,7 @@ namespace Lumen.Game.Editor;
 /// toolkit already exists, matches the rest of the game, and avoids a dependency whose
 /// only job would be to look different from every other screen.
 /// </summary>
-public sealed class EditorScreen : Screen
+public sealed class EditorScreen : Screen, IFileDropTarget
 {
     private enum Tool { Tap, Hold, Select }
 
@@ -76,6 +77,21 @@ public sealed class EditorScreen : Screen
     private Rectangle _waveArea;
 
     public EditorScreen(string? openChartPath = null) => _openPath = openChartPath;
+
+    /// <summary>
+    /// The audio the editor currently has decoded, or empty when there is none.
+    ///
+    /// Public because "is there audio loaded, and which" is the editor's state rather than
+    /// an internal detail — the import checks read it, and it is the honest answer to the
+    /// question the waveform is drawing.
+    /// </summary>
+    public string LoadedAudioFileName => _clip is null ? "" : Path.GetFileName(_audioPath);
+
+    /// <summary>Length of that audio in milliseconds; 0 when none is loaded.</summary>
+    public double LoadedAudioDurationMs => _peaks.DurationMs;
+
+    /// <summary>The name the chart will record for its audio.</summary>
+    public string ChartAudioFileName => _chart?.Meta.AudioFile ?? "";
 
     // --- lifecycle ---
 
@@ -743,11 +759,67 @@ public sealed class EditorScreen : Screen
         _selection.Clear();
     }
 
+    /// <summary>
+    /// Audio dropped onto the window while the editor is open (spec §49).
+    ///
+    /// This is the import path an author actually reaches for, and it did nothing at all
+    /// until now: the window raises the event and the manager offers it to whichever
+    /// screen is willing to take one, but the editor was not a
+    /// <see cref="IFileDropTarget"/>, so every file dropped on it fell on the floor. The
+    /// I key cycling through the songs folder was the only way in.
+    ///
+    /// A dropped file is taken into the songs folder rather than remembered where it lies.
+    /// A chart records the name of its audio and resolves it against that folder, which is
+    /// what lets the chart travel; pointing it at somebody's desktop would produce a chart
+    /// that plays here today and nowhere else ever again.
+    /// </summary>
+    public void OnFilesDropped(IReadOnlyList<string> paths)
+    {
+        AudioDropResult drop = AudioDrop.Classify(paths);
+
+        if (drop.Outcome == AudioDropOutcome.Empty)
+        {
+            return;
+        }
+
+        if (!drop.IsAccepted)
+        {
+            _error = drop.Message;
+            _status = null;
+            Log.Info($"editor: rejected drop ({drop.Outcome})");
+            return;
+        }
+
+        try
+        {
+            AudioAdoption.Result adopted = AudioAdoption.Adopt(drop.Path, Context.Paths.Songs);
+
+            LoadAudio(adopted.Path);
+            if (_clip is null)
+            {
+                // LoadAudio already put the decoder's complaint in _error.
+                return;
+            }
+
+            Do(new SetMeta(_chart.Meta with { AudioFile = adopted.FileName }));
+
+            _status = adopted.ReusedExisting
+                ? $"Audio: {adopted.FileName} (already in your songs folder)"
+                : drop.Message;
+            _error = null;
+        }
+        catch (Exception ex)
+        {
+            Log.Warn($"editor: could not take in {drop.Path}", ex);
+            _error = $"That file could not be brought in: {ex.Message}";
+            _status = null;
+        }
+    }
+
     private void ImportAudio()
     {
-        // No native file dialog in the toolkit yet, so the editor adopts whatever audio
-        // sits in the songs folder. Dropping a file in there and pressing I is the whole
-        // import flow until Phase 7 brings packages and a picker with them.
+        // The keyboard path: cycles through whatever is already in the songs folder. Drag
+        // and drop is the way in for a file that is not there yet.
         try
         {
             string[] candidates = Directory.Exists(Context.Paths.Songs)
@@ -1065,8 +1137,7 @@ public sealed class EditorScreen : Screen
 
         if (_peaks.DurationMs <= 0)
         {
-            ui.Text(ui.Mono(Theme.Label), "no audio — press I to pick one from the songs folder",
-                _waveArea, Theme.TextFaint, TextAlign.Center);
+            DrawDropInvitation(ui);
             return;
         }
 
@@ -1087,6 +1158,55 @@ public sealed class EditorScreen : Screen
 
         int playX = _waveArea.X + (int)(_playheadMs / _peaks.DurationMs * _waveArea.Width);
         ui.FillRect(new Rectangle(playX - 1, _waveArea.Y, 2, _waveArea.Height), Theme.Perfect);
+    }
+
+    /// <summary>
+    /// Where the waveform will be, saying what to put there.
+    ///
+    /// It is drawn as a target rather than as a sentence because dropping a file is the
+    /// gesture people reach for, and a gesture needs somewhere to aim. There is no
+    /// highlight-while-dragging state to go with it: the window reports a completed drop
+    /// and nothing before it, so a hover effect would be a lie about what the game can
+    /// see. The invitation stands whether or not anything is being dragged.
+    /// </summary>
+    private void DrawDropInvitation(UiRenderer ui)
+    {
+        var target = new Rectangle(
+            _waveArea.X + 12, _waveArea.Y + 8,
+            _waveArea.Width - 24, _waveArea.Height - 16);
+
+        DrawDashedBorder(ui, target, Theme.Border);
+
+        ui.Text(ui.Display(Theme.DisplayM), "Drop an audio file here",
+            new Rectangle(target.X, target.Y + 4, target.Width, 20),
+            Theme.TextMuted, TextAlign.Center);
+
+        ui.Text(ui.Mono(Theme.Label),
+            $"{AudioDrop.SupportedList}   ·   or press I for one already in your songs folder",
+            new Rectangle(target.X, target.Y + 26, target.Width, 14),
+            Theme.TextFaint, TextAlign.Center);
+    }
+
+    /// <summary>A dashed rectangle: the shape that reads as "put something here".</summary>
+    private static void DrawDashedBorder(UiRenderer ui, Rectangle area, Color color)
+    {
+        const int Dash = 7;
+        const int Gap = 5;
+        const int Step = Dash + Gap;
+
+        for (int x = area.X; x < area.Right; x += Step)
+        {
+            int width = Math.Min(Dash, area.Right - x);
+            ui.FillRect(new Rectangle(x, area.Y, width, 1), color);
+            ui.FillRect(new Rectangle(x, area.Bottom - 1, width, 1), color);
+        }
+
+        for (int y = area.Y; y < area.Bottom; y += Step)
+        {
+            int height = Math.Min(Dash, area.Bottom - y);
+            ui.FillRect(new Rectangle(area.X, y, 1, height), color);
+            ui.FillRect(new Rectangle(area.Right - 1, y, 1, height), color);
+        }
     }
 
     private void DrawSidebar(UiRenderer ui, Rectangle area)

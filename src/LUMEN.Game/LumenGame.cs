@@ -282,6 +282,10 @@ internal sealed class LumenGame : Microsoft.Xna.Framework.Game
             ("4-settings", new SettingsScreen()),
             ("5-songselect", new SongSelectScreen()),
             ("6-editor", new Editor.EditorScreen(test.ChartPath)),
+
+            // A fresh editor with nothing in it: the first thing a chart author sees, and
+            // the only place the drop target is visible.
+            ("6b-editor-new", new Editor.EditorScreen()),
             ("7-replays", new ReplaysScreen()),
             ("8-calibration", new CalibrationScreen()),
             ("9-tutorial", new TutorialScreen(onFinished: () => { })),
