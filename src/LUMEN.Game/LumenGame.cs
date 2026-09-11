@@ -252,6 +252,16 @@ internal sealed class LumenGame : Microsoft.Xna.Framework.Game
     }
 
     /// <summary>Renders each key screen to a PNG for visual verification, then exits.</summary>
+    /// <summary>
+    /// Renders each screen to a PNG, then exits (spec §101 verification, and the source of
+    /// every screenshot of this game).
+    ///
+    /// The screens that depend on time are given it rather than being caught on their
+    /// first frame: gameplay is played, by the autoplay input source, so the shot shows a
+    /// combo and live judgements instead of a chart falling past an absent player. The
+    /// result screen is the real result of that play — its accuracy, its PP, its rating
+    /// change — because a screenshot of invented numbers is a screenshot of nothing.
+    /// </summary>
     private void RunCapture(string dir)
     {
         Directory.CreateDirectory(dir);
@@ -275,7 +285,6 @@ internal sealed class LumenGame : Microsoft.Xna.Framework.Game
             ("7-replays", new ReplaysScreen()),
             ("8-calibration", new CalibrationScreen()),
             ("9-tutorial", new TutorialScreen(onFinished: () => { })),
-            ("10-gameplay", new Screens.GameplayScreen(test.ChartPath, test.AudioPath)),
         };
 
         using var target = new RenderTarget2D(GraphicsDevice, _display.Width, _display.Height);
@@ -283,40 +292,87 @@ internal sealed class LumenGame : Microsoft.Xna.Framework.Game
         foreach ((string name, Screen screen) in shots)
         {
             _screens.SetRoot(screen);
-
-            // Let time-based screens settle so the shot shows a real working state.
-            if (screen is Screens.GameplayScreen)
-            {
-                var warmup = System.Diagnostics.Stopwatch.StartNew();
-                var fake = _input.BeginFrame(0);
-                while (warmup.Elapsed.TotalSeconds < 3.2)
-                {
-                    _screens.Update(fake);
-                    System.Threading.Thread.Sleep(4);
-                }
-            }
-
-            GraphicsDevice.SetRenderTarget(target);
-            _screens.Draw(_ui);
-            GraphicsDevice.SetRenderTarget(null);
-
-            string path = Path.Combine(dir, $"lumen-{name}.png");
-            using (var fs = File.Create(path))
-            {
-                target.SaveAsPng(fs, target.Width, target.Height);
-            }
-
+            Capture(target, dir, name);
             screen.OnExit();
-            Log.Info($"captured {path}");
-            Console.WriteLine($"captured {path}");
         }
+
+        CapturePlay(target, dir, test);
+    }
+
+    /// <summary>
+    /// Plays the practice chart through to its result, stopping twice for a picture: once
+    /// mid-song with a combo running, and once on the result the play actually earned.
+    /// </summary>
+    private void CapturePlay(RenderTarget2D target, string dir, Lumen.Game.Content.TestContent.Installed test)
+    {
+        // Far enough in for a combo worth showing, and early enough that the chart is
+        // still visibly falling.
+        const double ShotAtSeconds = 12.0;
+        const double GiveUpAfterSeconds = 90.0;
+
+        var play = new Screens.GameplayScreen(test.ChartPath, test.AudioPath, autoPlay: true);
+        _screens.SetRoot(play);
+
+        var elapsed = System.Diagnostics.Stopwatch.StartNew();
+        bool shotTaken = false;
+
+        while (elapsed.Elapsed.TotalSeconds < GiveUpAfterSeconds)
+        {
+            _screens.Update(_input.BeginFrame(1 / 240.0, _ui.Scale));
+            System.Threading.Thread.Sleep(4);
+
+            if (!shotTaken && elapsed.Elapsed.TotalSeconds >= ShotAtSeconds)
+            {
+                Capture(target, dir, "10-gameplay");
+                shotTaken = true;
+            }
+
+            // The play pushes the result screen itself when the song ends.
+            if (_screens.Top is ResultScreen)
+            {
+                break;
+            }
+        }
+
+        if (_screens.Top is not ResultScreen)
+        {
+            Log.Warn("capture: the play did not reach a result");
+            return;
+        }
+
+        // Let the staged reveal finish, so the shot has the PP and the rating on it rather
+        // than catching them half counted up.
+        var settle = System.Diagnostics.Stopwatch.StartNew();
+        while (settle.Elapsed.TotalSeconds < 3.5)
+        {
+            _screens.Update(_input.BeginFrame(1 / 240.0, _ui.Scale));
+            System.Threading.Thread.Sleep(4);
+        }
+
+        Capture(target, dir, "11-result");
+    }
+
+    private void Capture(RenderTarget2D target, string dir, string name)
+    {
+        GraphicsDevice.SetRenderTarget(target);
+        _screens.Draw(_ui);
+        GraphicsDevice.SetRenderTarget(null);
+
+        string path = Path.Combine(dir, $"lumen-{name}.png");
+        using (var fs = File.Create(path))
+        {
+            target.SaveAsPng(fs, target.Width, target.Height);
+        }
+
+        Log.Info($"captured {path}");
+        Console.WriteLine($"captured {path}");
     }
 
     protected override void Update(GameTime gameTime)
     {
         _clock.Advance();
         _frameWatch.Restart();
-        InputFrame input = _input.BeginFrame(_clock.DeltaSeconds);
+        InputFrame input = _input.BeginFrame(_clock.DeltaSeconds, _ui.Scale);
 
         try
         {

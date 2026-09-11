@@ -32,11 +32,40 @@ public sealed class UiRenderer
 
     public GraphicsDevice Device { get; }
 
-    public int Width => Device.Viewport.Width;
+    /// <summary>
+    /// The height every screen is laid out against, whatever the window actually is.
+    ///
+    /// Screens position things in pixels, and pixels stop meaning anything the moment the
+    /// window is not the size they were written for: laid out for 720 and run at 1080, the
+    /// playfield becomes a thin strip down the middle and the result screen huddles in the
+    /// top half with a third of the display left blank. Rather than ask every screen to do
+    /// its own arithmetic, the whole UI is drawn into a fixed 720-tall space and scaled up
+    /// to fit. A screen written once then looks the same at 720p, 1080p and 4K.
+    /// </summary>
+    public const int DesignHeight = 720;
 
-    public int Height => Device.Viewport.Height;
+    /// <summary>How much bigger the window is than the space screens are drawn in.</summary>
+    public float Scale => Device.Viewport.Height / (float)DesignHeight;
+
+    /// <summary>
+    /// Width in that same space. Height is always <see cref="DesignHeight"/>; width is
+    /// whatever the window's aspect ratio makes it, so a wider monitor genuinely is wider
+    /// to lay out on rather than being letterboxed.
+    /// </summary>
+    public int Width => (int)MathF.Round(Device.Viewport.Width / Scale);
+
+    public int Height => DesignHeight;
 
     public Rectangle Bounds => new(0, 0, Width, Height);
+
+    /// <summary>Turns a real window position — a mouse cursor — into layout space.</summary>
+    public Point ToLayout(Point windowPosition)
+    {
+        float scale = Scale;
+        return new Point(
+            (int)MathF.Round(windowPosition.X / scale),
+            (int)MathF.Round(windowPosition.Y / scale));
+    }
 
     public bool FontsReady => _fonts.Loaded;
 
@@ -47,7 +76,10 @@ public sealed class UiRenderer
     public SpriteFontBase Mono(float size) => _fonts.Mono(size);
 
     public void Begin() =>
-        _batch.Begin(samplerState: SamplerState.LinearClamp, blendState: BlendState.AlphaBlend);
+        _batch.Begin(
+            samplerState: SamplerState.LinearClamp,
+            blendState: BlendState.AlphaBlend,
+            transformMatrix: Matrix.CreateScale(Scale, Scale, 1f));
 
     public void End() => _batch.End();
 

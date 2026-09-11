@@ -33,7 +33,7 @@ public sealed class InputRouter
         _typed.Append(c);
     }
 
-    public InputFrame BeginFrame(double deltaSeconds)
+    public InputFrame BeginFrame(double deltaSeconds, float uiScale = 1f)
     {
         KeyboardState keyboard = Keyboard.GetState();
         MouseState mouse = Mouse.GetState();
@@ -46,6 +46,7 @@ public sealed class InputRouter
             PreviousMouse = _previousMouse,
             TypedText = _typed.ToString(),
             DeltaSeconds = deltaSeconds,
+            UiScale = uiScale,
         };
 
         _typed.Clear();
