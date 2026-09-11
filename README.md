@@ -1,9 +1,134 @@
 # LUMEN
 
-> Working title — the in-game name is set in `src/LUMEN.Core/GameIdentity.cs`, never hardcoded.
+### 遊ぶ。競う。作る。 — ぜんぶ、ひとつの `LUMEN.exe` に。<br>Play. Compete. Create. — all in one `LUMEN.exe`.
+
+> **説明書はいらない。100時間後も、まだ伸びる。**
+> **No manual to read. Still getting better a hundred hours later.**
+
+完全オフラインの Windows 用リズムゲーム。総合レーティングと1プレイごとの PP、そして譜面エディタを内蔵しています。ダウンロードした後は、ネットワーク接続を一切必要としません。
 
 A fully-offline Windows rhythm game with a total Rating, per-play Performance Points (PP),
-and a built-in chart editor. Play · compete · create — in one `LUMEN.exe`.
+and a built-in chart editor. After the download it never needs a network connection again.
+
+> Working title — the in-game name is set in `src/LUMEN.Core/GameIdentity.cs`, never hardcoded.
+
+---
+
+## ダウンロード / Download
+
+**[→ 最新版をダウンロード / Get the latest release](https://github.com/7g3n/LUMEN/releases/latest)**
+
+| | |
+|---|---|
+| **[LUMEN-Setup-0.1.0.exe](https://github.com/7g3n/LUMEN/releases/download/v0.1.0/LUMEN-Setup-0.1.0.exe)** (28 MB) | インストーラー。ふつうはこちら。<br>Installer. Start here. |
+| **[LUMEN-Portable-0.1.0.zip](https://github.com/7g3n/LUMEN/releases/download/v0.1.0/LUMEN-Portable-0.1.0.zip)** (35 MB) | 展開して実行。USB メモリでも動き、PC に何も残しません。<br>Unzip and run. Works from a USB stick and leaves nothing behind. |
+
+Windows 10 / 11 (x64)。**.NET のインストールは不要です** — ランタイムは `LUMEN.exe` に同梱されています。
+Windows 10 / 11 (x64). **No .NET install required** — the runtime is inside `LUMEN.exe`.
+
+<details>
+<summary>SHA-256</summary>
+
+```
+26d3a9a2a790dae11248a24caffc4f7e1cdc724bbe320d164cdd101a3fa8f74e  LUMEN-Setup-0.1.0.exe
+ecb69a4c5d7e89b3bf513243926e201cf9e9e7a1b7603dc9d2c51b2008ed3b88  LUMEN-Portable-0.1.0.zip
+```
+</details>
+
+---
+
+## 導入方法
+
+### インストーラーで入れる
+
+1. **[LUMEN-Setup-0.1.0.exe](https://github.com/7g3n/LUMEN/releases/download/v0.1.0/LUMEN-Setup-0.1.0.exe)** をダウンロードして実行します。
+2. 「**WindowsによってPCが保護されました**」と出たら、「**詳細情報**」→「**実行**」を押してください。このインストーラーには**コード署名がありません**。個人開発のソフトに証明書が付いていないときの通常の警告です。気になる場合は上の SHA-256 でファイルを検証できます。
+3. インストール先を選びます。**「このユーザーのみ」を選べば管理者権限は要りません。**
+4. 起動して、名前を入れます。あとはチュートリアルからそのまま最初の曲が始まります。
+
+**曲を用意する必要はありません。** 練習曲はゲーム自身が合成して作ります。
+
+### 持ち運んで使う（インストールしない）
+
+1. **[LUMEN-Portable-0.1.0.zip](https://github.com/7g3n/LUMEN/releases/download/v0.1.0/LUMEN-Portable-0.1.0.zip)** をダウンロードして、好きな場所（USB メモリでも可）に展開します。
+2. `LUMEN.exe` をダブルクリックします。
+
+同梱の `portable.txt` がある間、セーブデータは `LUMEN.exe` の隣の `data` フォルダに入ります。PC 側には何も残りません。
+
+### 遊びかた
+
+| | |
+|---|---|
+| `A` `S` `D` `F` | 4つのレーンを叩く（設定で変更できます） |
+| `Esc` | 一時停止 / 戻る |
+| `Enter` | 決定 |
+
+ノーツが判定ラインに重なる瞬間にキーを押します。ラインに近いほど良い判定になります。
+
+### セーブデータの場所
+
+`%LOCALAPPDATA%\LUMEN\` にプロファイル、スコア、譜面、曲、リプレイが入ります。**アンインストールしても消えません**（削除するか訊かれ、既定は「消さない」です）。別の PC に移すときは、ゲーム内の 設定 → データ からバックアップを1ファイルに書き出せます。
+
+### うまく動かないとき
+
+- **起動しない / 画面が真っ黒**: `%LOCALAPPDATA%\LUMEN\logs\` のログを見てください。落ちた場合は同じ場所に `crash-*.txt` が残ります。
+- **音が出ない**: ゲームは音声デバイスがなくても動きます（画面に `SILENT` と出ます）。Windows の音声出力先を確認してください。
+- **タイミングが合わない**: 設定 → **Timing Calibration** で、鳴っているクリック音に合わせて叩くだけで自分に合った値が入ります。
+- **動きが速すぎる / 見づらい**: 設定の Accessibility に、動きの抑制・ハイコントラスト・判定の形状表示などがあります。
+
+---
+
+## Getting started
+
+### Install it
+
+1. Download and run **[LUMEN-Setup-0.1.0.exe](https://github.com/7g3n/LUMEN/releases/download/v0.1.0/LUMEN-Setup-0.1.0.exe)**.
+2. Windows will say **"Windows protected your PC"**. Choose **More info** → **Run anyway**. The installer is **not code-signed** — this is the normal warning for independent software without a certificate. You can verify the download against the SHA-256 above if you would rather check.
+3. Choose where to install. **Picking "Just for me" needs no administrator rights.**
+4. Launch it and type a name. A short tutorial follows, and then your first song starts.
+
+**You do not need to supply any music.** The practice track is synthesised by the game itself.
+
+### Or run it without installing
+
+1. Download **[LUMEN-Portable-0.1.0.zip](https://github.com/7g3n/LUMEN/releases/download/v0.1.0/LUMEN-Portable-0.1.0.zip)** and unzip it anywhere — a USB stick is fine.
+2. Double-click `LUMEN.exe`.
+
+While the bundled `portable.txt` sits beside it, everything LUMEN saves goes into the `data`
+folder next to the executable. Nothing is left on the machine you played on.
+
+### How to play
+
+| | |
+|---|---|
+| `A` `S` `D` `F` | the four lanes (rebindable in Settings) |
+| `Esc` | pause / back |
+| `Enter` | confirm |
+
+Press a lane's key as its note reaches the hit line. The closer to the line, the better the judgement.
+
+### Where your data lives
+
+`%LOCALAPPDATA%\LUMEN\` holds your profiles, scores, charts, songs and replays.
+**Uninstalling leaves them alone** — it asks, and the default is to keep them. To move to
+another machine, Settings → Data writes the lot to a single backup file.
+
+### If something goes wrong
+
+- **It will not start, or the window is black**: look in `%LOCALAPPDATA%\LUMEN\logs\`. If it crashed, a `crash-*.txt` report is in the same folder.
+- **No sound**: the game runs without an audio device (it shows `SILENT` on screen). Check which output Windows is using.
+- **The timing feels off**: Settings → **Timing Calibration**. Tap along with the click and it works out your offset for you.
+- **Too much motion, or hard to read**: Settings → Accessibility has reduced motion, high contrast and shape cues beside every judgement.
+
+---
+
+## What's in it / 中身
+
+- **遊ぶ / Play** — Tap and Hold notes, five judgement tiers, frame pacing verified up to 240 Hz, timing calibration
+- **競う / Compete** — a total Rating and per-play PP, personal bests, local rankings, achievements, and replays that reproduce a play exactly
+- **作る / Create** — a chart editor with total undo, a beat grid that follows tempo changes, Test Play, and `.lumen` package export
+
+---
 
 ## Status
 
@@ -42,7 +167,6 @@ string formatting behind them: 2,791 bytes allocated per frame became 234. The p
 splits each frame into the game's own work, the driver's present call and the frame
 limiter's wait, which is how a reproducible 60 ms stutter was identified as 58 ms inside
 the graphics driver with the game's work for that frame at a tenth of a millisecond.
-528 unit tests green.
 
 Prior phases: one-file backup, restore and machine migration (Phase 9); replays that
 reproduce a play exactly and achievements that unlock from your statistics (Phase 8); the
@@ -63,13 +187,11 @@ a chart can be verified end to end without a person at the keyboard.
 See [`docs/PLAN.md`](docs/PLAN.md) for the full 11-phase plan and
 [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the design.
 
-## Requirements
+## Building from source
 
 - Windows 10 / 11 (x64)
 - .NET 8 SDK — this machine uses a user-local install at `%USERPROFILE%\.dotnet`
   (the machine-wide runtime has no SDK). `build.ps1` handles the PATH.
-
-## Build & run
 
 ```powershell
 .\build.ps1 build     # compile everything
@@ -98,7 +220,7 @@ dotnet build LUMEN.sln
 |----------------|------------------|------|
 | `LUMEN.Core`   | `net8.0`         | Pure game logic — notes, judgement, scoring, Rating, PP, chart model. No engine, no I/O. |
 | `LUMEN.Data`   | `net8.0`         | SQLite, repositories, migrations, backup, path resolution. |
-| `LUMEN.Audio`  | `net8.0-windows` | Low-latency audio playback and the audio clock (Phase 3). |
+| `LUMEN.Audio`  | `net8.0-windows` | Low-latency audio playback and the audio clock. |
 | `LUMEN.Game`   | `net8.0-windows` | MonoGame application → `LUMEN.exe`. |
 | `LUMEN.Tests`  | `net8.0-windows` | xUnit. |
 
