@@ -1,9 +1,11 @@
 using System;
 using System.IO;
+using System.Linq;
 using Lumen.Core;
 using Lumen.Core.Diagnostics;
 using Lumen.Data;
 using Lumen.Data.Achievements;
+using Lumen.Data.Backup;
 using Lumen.Data.Library;
 using Lumen.Data.Packages;
 using Lumen.Data.Repositories;
@@ -85,6 +87,10 @@ internal sealed class LumenGame : Microsoft.Xna.Framework.Game
         // it to whichever screen is willing to take it.
         Window.FileDrop += (_, e) => _screens.DeliverFileDrop(e.Files);
 
+        // Daily, and whenever the game has been updated — the moment before a migration
+        // touches the database is exactly when a copy of the old one is worth having.
+        _context.Backups.AutoBackupIfDue();
+
         base.Initialize();
     }
 
@@ -102,6 +108,15 @@ internal sealed class LumenGame : Microsoft.Xna.Framework.Game
         var scores = new ScoreRepository(_db, balance);
         var replays = new ReplayRepository(_db, _paths.Replays);
         var achievements = new AchievementRepository(_db);
+        var backups = new BackupService(_db, _paths, appMeta, library);
+
+        // Debris from a write that was interrupted by a kill or a power cut (§74).
+        int swept = new[] { _paths.Songs, _paths.ChartsLocal, _paths.ChartsImported, _paths.Replays }
+            .Sum(folder => AtomicFile.SweepStaleTemporaries(folder));
+        if (swept > 0)
+        {
+            Log.Info($"swept {swept} leftover temporary file(s)");
+        }
 
         // A replay whose file has gone is one the player can see and cannot watch.
         int orphaned = replays.PruneMissing();
@@ -123,6 +138,7 @@ internal sealed class LumenGame : Microsoft.Xna.Framework.Game
             Replays = replays,
             Achievements = new AchievementService(
                 scores, profiles, library.Charts, achievements),
+            Backups = backups,
             AppMeta = appMeta,
             Display = _display,
             Balance = balance,

@@ -92,7 +92,7 @@ duplicated, so importing the same package twice costs nothing.
 
 ## `.lumenbackup` — full data backup / machine migration (§12, §13)
 
-*Planned for Phase 9; the shape below is the design, not yet the implementation.*
+Implemented in Phase 9.
 
 A ZIP archive containing everything needed to reconstruct a player's data on another
 machine (§13). Also the auto-backup format, named `lumen-backup-YYYY-MM-DD-HHMMSS.lumenbackup`.
@@ -100,15 +100,21 @@ machine (§13). Also the auto-backup format, named `lumen-backup-YYYY-MM-DD-HHMM
 ```
 lumen-backup-2026-09-09-143005.lumenbackup  (zip)
   manifest.json          // formatVersion, lumenVersion, createdUtc, profile summary, counts
-  database.sql           // full logical dump (portable across SQLite versions)
+  database.json          // full logical dump, table by table (portable across schema versions)
   charts/                // every local + imported .lumenchart
   songs/                 // referenced audio
   replays/               // replay blobs
   settings/              // settings snapshots, key bindings, offsets
 ```
 
-Restore validates `manifest.json`, then rebuilds the database from `database.sql`
-inside a transaction and copies files into place with atomic writes.
+Restore validates `manifest.json`, writes the files into place with atomic writes, then
+merges the dump into the database inside one transaction (`INSERT OR REPLACE` on the
+primary keys). Merging rather than replacing means restoring onto a machine that already
+has data adds to it; on a clean machine the result is an identical installation.
+
+The dump is JSON rather than SQL because generating SQL means hand-escaping quotes, NULs
+and blobs into string literals — a correctness risk with no upside — while JSON round-trips
+values exactly and lets the importer skip a column this build no longer has.
 
 ## Migration layer (§98)
 

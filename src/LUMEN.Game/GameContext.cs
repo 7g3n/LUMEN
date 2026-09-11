@@ -5,6 +5,7 @@ using Lumen.Core.Scores;
 using Lumen.Core.Settings;
 using Lumen.Data;
 using Lumen.Data.Achievements;
+using Lumen.Data.Backup;
 using Lumen.Data.Library;
 using Lumen.Data.Packages;
 using Lumen.Data.Repositories;
@@ -37,6 +38,8 @@ public sealed class GameContext
     public required ReplayRepository Replays { get; init; }
 
     public required AchievementService Achievements { get; init; }
+
+    public required BackupService Backups { get; init; }
 
     public required AppMetaStore AppMeta { get; init; }
 

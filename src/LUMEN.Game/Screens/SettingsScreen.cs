@@ -1,4 +1,7 @@
 using System.Diagnostics;
+using System.IO;
+using System.Linq;
+using Lumen.Data.Backup;
 using Lumen.Core.Diagnostics;
 using Lumen.Core.Settings;
 using Lumen.Game.Config;
@@ -62,7 +65,15 @@ public sealed class SettingsScreen : Screen
         _rows.Add(OffsetRow("Audio Offset", SettingKeys.AudioOffsetMs, s, id));
 
         _rows.Add(new SectionRow { Label = "Controls" });
-        _rows.Add(new InfoRow { Label = "Key Bindings", Value = "Phase 3" });
+        // The bindings are real and stored per profile; the screen to change them from
+        // here arrives in Phase 10, so show what they currently are rather than a
+        // placeholder that reads like the feature is missing.
+        _rows.Add(new InfoRow
+        {
+            Label = "Key Bindings",
+            Value = string.Join(" ", Input.KeyBindings
+                .Load(Context.Settings, Context.Session.ActivePlayerId).Lanes),
+        });
 
         _rows.Add(new SectionRow { Label = "Display" });
         _rows.Add(new ToggleRow
@@ -97,10 +108,44 @@ public sealed class SettingsScreen : Screen
         _rows.Add(new SectionRow { Label = "Data" });
         _rows.Add(new ActionRow
         {
-            Label = "Open Data Folder",
-            OnActivate = OpenDataFolder,
+            Label = "Create Backup",
+            ActionText = "BACK UP",
+            OnActivate = CreateBackup,
         });
-        _rows.Add(new InfoRow { Label = "Backup / Export / Import", Value = "Phase 9" });
+        _rows.Add(new ActionRow
+        {
+            Label = "Restore Backup",
+            ActionText = LatestBackupLabel(),
+            OnActivate = RestoreLatestBackup,
+        });
+        _rows.Add(new ActionRow
+        {
+            Label = "Export Data",
+            ActionText = "EXPORT",
+            OnActivate = ExportData,
+        });
+        _rows.Add(new ActionRow
+        {
+            Label = "Import Data",
+            ActionText = ImportableLabel(),
+            OnActivate = ImportData,
+        });
+        _rows.Add(new ActionRow { Label = "Open Data Folder", OnActivate = OpenDataFolder });
+        _rows.Add(new ActionRow
+        {
+            Label = "Open Backups Folder",
+            OnActivate = () => OpenFolder(Context.Paths.Backups),
+        });
+        _rows.Add(new ActionRow
+        {
+            Label = "Open Charts Folder",
+            OnActivate = () => OpenFolder(Path.GetDirectoryName(Context.Paths.ChartsLocal)!),
+        });
+
+        if (_dataMessage is { Length: > 0 })
+        {
+            _rows.Add(new InfoRow { Label = "", Value = _dataMessage });
+        }
 
         _selected = FirstInteractive(0, 1);
     }
@@ -113,6 +158,133 @@ public sealed class SettingsScreen : Screen
         Min = -100, Max = 100, Step = 1,
         Format = v => $"{(v > 0 ? "+" : "")}{v:0} ms",
     };
+
+    private string? _dataMessage;
+
+    /// <summary>
+    /// Backup and restore act on the newest file in the backups folder rather than through
+    /// a file picker: the toolkit has no dialog yet, and "restore the most recent backup"
+    /// is the action a player actually wants nine times out of ten. Anything else is one
+    /// drag away — export writes to the exports folder, and import reads from it.
+    /// </summary>
+    private string LatestBackupLabel()
+    {
+        BackupService.BackupInfo? latest = Context.Backups.List().FirstOrDefault();
+        return latest is null ? "NONE YET" : latest.CreatedUtc.ToLocalTime().ToString("MM-dd HH:mm");
+    }
+
+    private string ImportableLabel()
+    {
+        return Importable() is { } file ? Path.GetFileName(file) : "NONE FOUND";
+    }
+
+    /// <summary>The newest backup sitting in the exports folder, if any.</summary>
+    private string? Importable()
+    {
+        if (!Directory.Exists(Context.Paths.Exports))
+        {
+            return null;
+        }
+
+        return Directory
+            .EnumerateFiles(Context.Paths.Exports, $"*.{Core.GameIdentity.BackupExtension}")
+            .OrderByDescending(File.GetLastWriteTimeUtc)
+            .FirstOrDefault();
+    }
+
+    private void CreateBackup()
+    {
+        Run(() =>
+        {
+            BackupService.BackupInfo info = Context.Backups.Create();
+            return $"Saved {info.FileName} ({info.SizeBytes / 1024:N0} KB).";
+        });
+    }
+
+    private void RestoreLatestBackup()
+    {
+        BackupService.BackupInfo? latest = Context.Backups.List().FirstOrDefault();
+        if (latest is null)
+        {
+            _dataMessage = "There are no backups yet.";
+            BuildRows();
+            return;
+        }
+
+        Run(() =>
+        {
+            BackupService.RestoreResult result = Context.Backups.Restore(latest.Path);
+            Context.Session.Refresh();
+            return $"Restored {result.Rows:N0} rows and {result.FilesRestored} files " +
+                   $"from {latest.FileName}.";
+        });
+    }
+
+    private void ExportData()
+    {
+        Run(() =>
+        {
+            Directory.CreateDirectory(Context.Paths.Exports);
+            string path = Path.Combine(
+                Context.Paths.Exports, BackupService.FileNameFor(DateTime.Now));
+
+            BackupService.BackupInfo info = Context.Backups.Create(path);
+            return $"Exported {info.FileName} to the exports folder.";
+        });
+    }
+
+    private void ImportData()
+    {
+        if (Importable() is not { } file)
+        {
+            _dataMessage =
+                $"Put a .{Core.GameIdentity.BackupExtension} file in the exports folder first.";
+            BuildRows();
+            return;
+        }
+
+        Run(() =>
+        {
+            BackupService.RestoreResult result = Context.Backups.Restore(file);
+            Context.Session.Refresh();
+            return $"Imported {result.Rows:N0} rows and {result.FilesRestored} files " +
+                   $"from {Path.GetFileName(file)}.";
+        });
+    }
+
+    /// <summary>
+    /// Runs a data action and turns whatever happens into one line the player can read.
+    /// These touch every file the game owns, so none of them may take the game down.
+    /// </summary>
+    private void Run(Func<string> action)
+    {
+        try
+        {
+            _dataMessage = action();
+        }
+        catch (Exception ex)
+        {
+            Log.Error("data action failed", ex);
+            _dataMessage = ex.Message;
+        }
+
+        BuildRows();
+    }
+
+    private void OpenFolder(string path)
+    {
+        try
+        {
+            Directory.CreateDirectory(path);
+            Process.Start(new ProcessStartInfo(path) { UseShellExecute = true });
+        }
+        catch (Exception ex)
+        {
+            Log.Warn($"could not open {path}", ex);
+            _dataMessage = "That folder could not be opened.";
+            BuildRows();
+        }
+    }
 
     private void OpenDataFolder()
     {

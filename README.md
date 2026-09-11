@@ -7,15 +7,17 @@ and a built-in chart editor. Play · compete · create — in one `LUMEN.exe`.
 
 ## Status
 
-**Phase 8 — Replays and achievements: complete.** Every play you finish is recorded, with
-no switch to remember to flip — a replay you had to ask for in advance is never there for
-the run that turned out to matter. Watching one feeds your own inputs back through the
-real game, so it reproduces the play exactly rather than approximately. Achievements
-unlock from your statistics rather than from the moment they happened, which means one
-added later still unlocks for what you have already done. 448 unit tests green.
+**Phase 9 — Backup, restore and machine migration: complete.** One `.lumenbackup` file
+carries everything you would otherwise lose by changing computer: profiles, scores,
+ratings, your chart library and its audio, replays and achievements. Restore it on a clean
+install and you have your game back; restore it onto a machine that already has data and
+it adds to it rather than wiping it. Backups are taken automatically once a day and
+whenever the game has been updated — the moment before a migration touches your data is
+exactly when a copy is worth having. 467 unit tests green.
 
-Prior phases: the chart and package formats with validation, revision history and format
-migration (Phase 7); the chart editor with total undo, a beat grid that follows tempo
+Prior phases: replays that reproduce a play exactly and achievements that unlock from your
+statistics (Phase 8); the chart and package formats with validation, revision history and
+format migration (Phase 7); the chart editor with total undo, a beat grid that follows tempo
 changes and Test Play (Phase 6); the song library, Song Select with per-chart bests and
 local rankings, and favourites (Phase 5); Rating, PP, per-play performances and statistics, with score
 saving as one all-or-nothing SQLite transaction (Phase 4); Tap + Hold gameplay with a

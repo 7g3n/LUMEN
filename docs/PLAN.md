@@ -204,11 +204,34 @@ watched at 30, 60 or 240 fps; a serialised replay still reproduces it; replays a
 achievements survive a close-and-reopen of the database. `--autoplay` end to end wrote a
 96-event replay and unlocked exactly the five achievements it had earned.
 
-### Phase 9 — Backup / restore / data migration (§12–13, §74)
-Auto-backup on schedule + on version change; manual Create/Restore Backup.
-`.lumenbackup` export/import full round-trip. Open-folder actions. Atomic-write audit.
-**Exit:** export on A → import on clean B → identical everything; restore from auto-backup;
-process killed mid-write → DB still opens.
+### Phase 9 — Backup / restore / data migration (§12–13, §74) ✅
+Data: `.lumenbackup` is a ZIP holding a *logical* dump of the database plus the files it
+points at — charts, songs, replays, settings. Logical rather than a copy of the database
+file, so a backup taken today still restores on a build whose schema has moved on. JSON
+rather than the `database.sql` the format note sketched: generating SQL means hand-escaping
+quotes, NULs and blobs into string literals, a correctness risk with no upside, while JSON
+round-trips values exactly and lets the importer drop a column that no longer exists.
+Restore merges (`INSERT OR REPLACE` on the primary keys) rather than replacing — on a clean
+machine that is an identical installation, which is the migration case, and on a machine
+that already has data it adds to it, which is the only safe reading of "import".
+`BackupService` also takes an automatic backup daily *and* whenever the version has
+changed: the moment before a migration touches the database is exactly when a copy of the
+old one is worth having. Rotation keeps ten.
+Game: Settings grew a Data section — create, restore the most recent, export to the exports
+folder, import from it, and open the data / backups / charts folders.
+Atomic-write audit: `AtomicFile` already left the previous file intact on a kill; it now
+also sweeps the `*.tmp` debris such a kill leaves behind, at startup, for files older than
+five minutes so a write in flight is never touched.
+**Exit met:** 19 new tests (467 total, green). Export on installation A → restore on a
+clean B brings back the profile with its id, the scores and the rating derived from them,
+the library and its favourites, the replay including its event stream, the achievements,
+and the chart/audio/settings files — and the restored chart is playable because its row
+points at files that exist. Restoring twice is a no-op; restoring into a populated
+installation adds rather than wipes. A database left with an unfinished write-ahead log
+still opens with its data. Damaged, manifest-less and newer-format archives are refused
+with readable messages, and an entry crafted as `songs/../../../escaped.wav` is written by
+its leaf name inside the data folder. Verified live: the automatic backup fired on the
+real data folder (2.6 MB, 4 files) immediately after the v6 migration.
 
 ### Phase 10 — Polish / optimization / accessibility (§66–68, §81–85, §95–96)
 Frame-pacing & input-latency profiling; 144/165/240 Hz. Calibration screen.

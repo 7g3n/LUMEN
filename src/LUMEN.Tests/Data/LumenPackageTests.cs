@@ -173,10 +173,12 @@ public class LumenPackageTests : IDisposable
         PackageService.ExportResult exported = _packages.Export(Publish(Chart()));
 
         _packages.Import(exported.Path);
-        int after = Directory.GetFiles(_paths.Songs).Length;
+        string[] after = Directory.GetFiles(_paths.Songs, "*.wav");
         _packages.Import(exported.Path);
 
-        Directory.GetFiles(_paths.Songs).Length.Should().Be(after);
+        // Counts the audio specifically: an interrupted write elsewhere can leave a
+        // *.tmp in the folder, and that is not what this test is about.
+        Directory.GetFiles(_paths.Songs, "*.wav").Should().BeEquivalentTo(after);
     }
 
     [Fact]

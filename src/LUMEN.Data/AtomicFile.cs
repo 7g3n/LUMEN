@@ -40,4 +40,46 @@ public static class AtomicFile
     /// </summary>
     public static string? ReadAllTextOrNull(string path)
         => File.Exists(path) ? File.ReadAllText(path, Utf8NoBom) : null;
+
+    /// <summary>
+    /// Removes <c>*.tmp</c> files left behind by writes that were interrupted.
+    ///
+    /// A kill between the write and the rename leaves the real file untouched, which is
+    /// the point — but it also leaves debris the player can see in their songs folder.
+    /// Only files older than <paramref name="olderThan"/> are removed, so a write that is
+    /// in flight right now is never touched.
+    /// </summary>
+    public static int SweepStaleTemporaries(string directory, TimeSpan? olderThan = null)
+    {
+        if (!Directory.Exists(directory))
+        {
+            return 0;
+        }
+
+        DateTime cutoff = DateTime.UtcNow - (olderThan ?? TimeSpan.FromMinutes(5));
+        int removed = 0;
+
+        foreach (string file in Directory.EnumerateFiles(directory, "*.tmp"))
+        {
+            try
+            {
+                if (File.GetLastWriteTimeUtc(file) > cutoff)
+                {
+                    continue;
+                }
+
+                File.Delete(file);
+                removed++;
+            }
+            catch (IOException)
+            {
+                // Still held by something; it will be swept next time.
+            }
+            catch (UnauthorizedAccessException)
+            {
+            }
+        }
+
+        return removed;
+    }
 }
