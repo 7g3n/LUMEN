@@ -24,3 +24,15 @@ public abstract class Screen
 
     public abstract void Draw(UiRenderer ui);
 }
+
+/// <summary>
+/// A screen that accepts files dropped onto the window (spec §56).
+///
+/// Declared as an interface rather than a hook on <see cref="Screen"/> so that a screen
+/// which has nothing to do with files cannot accidentally swallow a drop, and so the
+/// manager can tell whether the top screen wants one at all.
+/// </summary>
+public interface IFileDropTarget
+{
+    void OnFilesDropped(IReadOnlyList<string> paths);
+}

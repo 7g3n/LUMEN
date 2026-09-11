@@ -151,14 +151,31 @@ BPM changes are supported by the format, the grid and `SetBpmPoints` but have no
 UI yet — the toolbar only nudges the opening tempo. Audio import cycles through the songs
 folder because the toolkit has no file dialog; Phase 7 brings packages and a picker.
 
-### Phase 7 — Chart system (§52–61, §98)
-`.lumenchart` / `.lumen` / `.lumenbackup` formats; parser + validator.
-Difficulty analysis feeding displayed level + PP skill attributes.
-Chart versioning with history; drag-drop import; export; format migration layer v1→vN;
-metadata + tags.
-**Exit:** export `.lumen` → wipe → import → identical chart & difficulty; validator flags
-overlaps/missing BPM/bad timing/missing metadata; difficulty estimate stable & tested;
-migration test.
+### Phase 7 — Chart system (§52–61, §98) ✅
+Core: chart format v2 — metadata grew a description, tags, a cover reference and the audio
+length, and charts carry a stable `id` (§58). `ChartKey` is derived from the content, so it
+changes the moment a note does; the id is what version history can be keyed on. Stamped on
+the first save rather than generated on load, so an unedited old chart keeps one identity
+instead of a new one per read. `ChartMigrator` walks a document forward step by step and
+derives what v1 never recorded (duration, from the last note); a file from a newer build is
+refused with an explanation rather than guessed at. `ChartValidator` (§52) splits errors —
+no audio, no notes, a note outside the lanes — from warnings the author may well have meant,
+because blocking on the second kind teaches authors to ignore the validator.
+Data: `.lumen` is a ZIP with a manifest and a SHA-256 per entry, so it survives email and a
+decade and reports damage instead of importing a broken chart. `PackageService` exports
+(validating first — a package nobody can play is not worth sending) and imports
+additively: identical audio is reused, a second package with the same difficulty name gets
+its own file. Schema v5 `chart_versions` stores whole documents rather than diffs, keyed on
+the chart id, de-duplicated and bounded.
+Game: the editor validates (V), exports (X) and shows revision history (H), and stamps the
+id and records a revision on every save. Song Select imports a `.lumen` dropped on the
+window — MonoGame's `FileDrop` routed to whichever screen implements `IFileDropTarget`.
+**Exit met:** 60 new tests (395 total, green). Export → wipe the library → import comes back
+with the same charts, metadata, tags and chart id; a tampered entry fails its checksum, a
+zip with no manifest and a newer-format package are both refused with readable messages;
+the validator's error/warning split is pinned case by case; a real v1 document migrates,
+loads and round-trips. The existing database migrated v4 → v5 in place and the v1 practice
+chart still loads.
 
 ### Phase 8 — Replay & achievements (§41, §64)
 Replay recording (input + judgement stream + seed); deterministic playback; list + viewer;

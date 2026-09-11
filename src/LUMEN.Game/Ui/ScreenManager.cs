@@ -93,6 +93,15 @@ public sealed class ScreenManager
         _phase = Phase.Idle;
     }
 
+    /// <summary>Hands a window file-drop to the top screen, if it wants one.</summary>
+    public void DeliverFileDrop(IReadOnlyList<string> paths)
+    {
+        if (Top is IFileDropTarget target && paths.Count > 0)
+        {
+            target.OnFilesDropped(paths);
+        }
+    }
+
     public void Update(InputFrame input)
     {
         if (_phase == Phase.Idle)

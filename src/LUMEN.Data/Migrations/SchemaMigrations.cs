@@ -141,5 +141,22 @@ public static class SchemaMigrations
                 FROM scores s
                 LEFT JOIN performances p ON p.score_id = s.score_id;
             """),
+
+        Migration.Sql(5, "chart_versions",
+            """
+            CREATE TABLE chart_versions (
+                chart_id         TEXT    NOT NULL,
+                version          INTEGER NOT NULL,
+                saved_utc        TEXT    NOT NULL,
+                note_count       INTEGER NOT NULL DEFAULT 0,
+                difficulty_level REAL    NOT NULL DEFAULT 0,
+                title            TEXT    NOT NULL DEFAULT '',
+                difficulty_name  TEXT    NOT NULL DEFAULT '',
+                document         TEXT    NOT NULL,
+                PRIMARY KEY (chart_id, version)
+            ) WITHOUT ROWID;
+
+            CREATE INDEX ix_chart_versions_saved ON chart_versions (chart_id, saved_utc DESC);
+            """),
     };
 }

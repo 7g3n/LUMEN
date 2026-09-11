@@ -4,6 +4,7 @@ using Lumen.Core;
 using Lumen.Core.Diagnostics;
 using Lumen.Data;
 using Lumen.Data.Library;
+using Lumen.Data.Packages;
 using Lumen.Data.Repositories;
 using Lumen.Game.Config;
 using Lumen.Game.Engine;
@@ -79,12 +80,17 @@ internal sealed class LumenGame : Microsoft.Xna.Framework.Game
 
         BuildContext();
 
+        // A package dropped on the window is the import gesture (§56); the manager passes
+        // it to whichever screen is willing to take it.
+        Window.FileDrop += (_, e) => _screens.DeliverFileDrop(e.Files);
+
         base.Initialize();
     }
 
     private void BuildContext()
     {
         var profiles = new ProfileRepository(_db);
+        var library = new LibraryService(new LibraryRepository(_db), _paths);
         var settings = new SettingsRepository(_db);
         var appMeta = new AppMetaStore(_db);
         var session = new Session(_db, profiles, appMeta);
@@ -99,7 +105,9 @@ internal sealed class LumenGame : Microsoft.Xna.Framework.Game
             Profiles = profiles,
             Settings = settings,
             Scores = new ScoreRepository(_db, balance),
-            Library = new LibraryService(new LibraryRepository(_db), _paths),
+            Library = library,
+            Packages = new PackageService(_paths, library),
+            ChartVersions = new ChartVersionRepository(_db),
             AppMeta = appMeta,
             Display = _display,
             Balance = balance,

@@ -3,7 +3,12 @@
 All formats are original to LUMEN. Format version is independent of the app version
 (spec §97) and is stamped in every file for the migration layer (§98).
 
-Current: **chart format v1**, **backup format v1**.
+Current: **chart format v2**, **package format v1**, **backup format v1**.
+
+`ChartMigrator` upgrades any older document on load, so a `.lumenchart` written by any
+past build still opens. v1 → v2 added `meta.description`, `meta.tags`, `meta.coverFile`
+and `meta.durationMs`; the duration is derived from the last note for v1 files, which
+never recorded it.
 
 ## `.lumenchart` — a single chart
 
@@ -11,8 +16,8 @@ UTF-8 JSON. One difficulty on one song. Does **not** embed audio.
 
 ```jsonc
 {
-  "formatVersion": 1,
-  "id": "b1b6...uuid",
+  "formatVersion": 2,
+  "id": "b1b6...uuid",         // stable across edits; stamped on the first save (§58)
   "meta": {
     "title": "…",
     "artist": "…",
@@ -62,6 +67,9 @@ MySong.lumen  (zip)
     expert.lumenchart
 ```
 
+Every entry's SHA-256 is recorded in the manifest and verified on import, so a truncated
+download is reported as damage rather than imported as a broken chart.
+
 `manifest.json`:
 
 ```jsonc
@@ -78,10 +86,13 @@ MySong.lumen  (zip)
 }
 ```
 
-Import copies audio into `songs/`, charts into `charts/imported/`, and registers rows
-in `songs` / `charts` / `chart_versions`.
+Import copies audio into `songs/` and charts into `charts/imported/`, then rescans the
+library. Audio that is byte-identical to a file already there is reused rather than
+duplicated, so importing the same package twice costs nothing.
 
 ## `.lumenbackup` — full data backup / machine migration (§12, §13)
+
+*Planned for Phase 9; the shape below is the design, not yet the implementation.*
 
 A ZIP archive containing everything needed to reconstruct a player's data on another
 machine (§13). Also the auto-backup format, named `lumen-backup-YYYY-MM-DD-HHMMSS.lumenbackup`.
@@ -101,6 +112,11 @@ inside a transaction and copies files into place with atomic writes.
 
 ## Migration layer (§98)
 
-`ChartMigrator` upgrades any `formatVersion < GameIdentity.ChartFormatVersion` to
-current on load, step by step (`v1→v2→v3`). Old files always remain readable.
-Each migration step has a round-trip unit test.
+`ChartMigrator` upgrades any `formatVersion < GameIdentity.ChartFormatVersion` to current
+on load, step by step (`v1→v2→v3`). It works on the JSON document rather than on a typed
+object, because that is what a format change actually is: fields move, get renamed, or
+have to be derived from what the old version did record — a typed reader can tolerate a
+missing field but cannot rebuild one.
+
+A document from a *newer* build is refused with an explanation rather than guessed at.
+Every step has a round-trip unit test.

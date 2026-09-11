@@ -5,6 +5,7 @@ using Lumen.Core.Diagnostics;
 using Lumen.Core.Editing;
 using Lumen.Core.Settings;
 using Lumen.Data;
+using Lumen.Data.Packages;
 using Lumen.Game.Screens;
 using Lumen.Game.Ui;
 using Microsoft.Xna.Framework;
@@ -60,6 +61,7 @@ public sealed class EditorScreen : Screen
 
     private string? _status;
     private string? _error;
+    private ValidationReport? _report;
 
     // Drag state. Held notes and the marquee both start on a press in the field.
     private bool _dragging;
@@ -374,6 +376,55 @@ public sealed class EditorScreen : Screen
         else if (input.Pressed(Keys.OemPlus))
         {
             ChangeSpeed(+1);
+        }
+        else if (input.Pressed(Keys.V))
+        {
+            _report = ChartValidator.Validate(_chart);
+            _status = _report.CanExport
+                ? $"Validation passed ({_report.Warnings} warning(s))."
+                : $"{_report.Errors} problem(s) to fix before export.";
+        }
+        else if (input.Pressed(Keys.X))
+        {
+            ExportPackage();
+        }
+        else if (input.Pressed(Keys.H))
+        {
+            _showHistory = !_showHistory;
+        }
+    }
+
+    private bool _showHistory;
+
+    /// <summary>Bundles this chart and its audio into a `.lumen` package (spec §57).</summary>
+    private void ExportPackage()
+    {
+        string path = Save();
+        if (path.Length == 0)
+        {
+            return;
+        }
+
+        try
+        {
+            Lumen.Core.Library.LibraryChart? entry = Context.Library.Charts.All()
+                .FirstOrDefault(c => string.Equals(c.ChartPath, path, StringComparison.OrdinalIgnoreCase));
+
+            if (entry is null)
+            {
+                _error = "The library has not picked this chart up yet — save it again.";
+                return;
+            }
+
+            PackageService.ExportResult result = Context.Packages.Export(new[] { entry });
+            _status = $"Exported {Path.GetFileName(result.Path)} " +
+                      $"({result.SizeBytes / 1024:N0} KB) to the exports folder.";
+            _error = null;
+        }
+        catch (Exception ex)
+        {
+            Log.Warn("export failed", ex);
+            _error = ex.Message;
         }
     }
 
@@ -747,6 +798,14 @@ public sealed class EditorScreen : Screen
     {
         try
         {
+            // The identity stamp is not an edit - it is how this chart will be recognised
+            // across every future edit - so it is applied outside the undo stack. Undoing
+            // your way back past it would only orphan the history.
+            if (_chart.Id is null)
+            {
+                _chart = _chart with { Id = Guid.NewGuid() };
+            }
+
             if (_chartPath.Length == 0)
             {
                 Directory.CreateDirectory(Context.Paths.ChartsLocal);
@@ -755,14 +814,20 @@ public sealed class EditorScreen : Screen
                     Context.Paths.ChartsLocal, $"{stem}.{GameIdentity.ChartExtension}");
             }
 
-            AtomicFile.WriteAllText(_chartPath, ChartJson.Serialize(_chart));
+            string document = ChartJson.Serialize(_chart);
+            AtomicFile.WriteAllText(_chartPath, document);
             _stack.MarkClean();
+
+            int revision = Context.ChartVersions.Record(_chart.Id.Value, _chart, document);
 
             // The library index is a cache of these files, so tell it immediately rather
             // than waiting for the next visit to Song Select.
             Context.Library.Scan();
 
-            _status = $"Saved to {Path.GetFileName(_chartPath)}.";
+            _report = ChartValidator.Validate(_chart);
+            _status = _report.CanExport
+                ? $"Saved to {Path.GetFileName(_chartPath)} (revision {revision})."
+                : $"Saved, but {_report.Errors} problem(s) block export.";
             _error = null;
             return _chartPath;
         }
@@ -1056,6 +1121,40 @@ public sealed class EditorScreen : Screen
         y = Line(ui, area, y, _stack.CanRedo ? $"redo: {_stack.RedoLabel}" : "nothing to redo");
         y += 10;
 
+        if (_report is { } report)
+        {
+            y = Section(ui, area, y, "VALIDATION");
+            foreach (ValidationCheck check in Enum.GetValues<ValidationCheck>())
+            {
+                bool ok = report.Passed(check);
+                ui.Text(ui.Mono(Theme.Label), (ok ? "OK  " : "X   ") + check.ToString().ToUpperInvariant(),
+                    new Rectangle(area.X, y, area.Width, 16), ok ? Theme.Good : Theme.Danger);
+                y += 16;
+            }
+
+            ValidationIssue? first = report.Issues.FirstOrDefault();
+            if (first is not null)
+            {
+                y = Line(ui, area, y, Truncate(first.Message, 34));
+            }
+
+            y += 10;
+        }
+
+        if (_showHistory && _chart.Id is { } chartId)
+        {
+            y = Section(ui, area, y, "HISTORY (H)");
+            foreach (Lumen.Data.Repositories.ChartVersion version in
+                     Context.ChartVersions.List(chartId).Take(6))
+            {
+                y = Line(ui, area, y,
+                    $"v{version.Version}  {version.NoteCount} notes  " +
+                    $"{version.SavedUtc.ToLocalTime():HH:mm}");
+            }
+
+            y += 10;
+        }
+
         y = Section(ui, area, y, "SHORTCUTS");
         foreach (string hint in new[]
                  {
@@ -1070,6 +1169,7 @@ public sealed class EditorScreen : Screen
                      "I      audio    B / N  BPM",
                      "O / P  offset   K / L  level",
                      "- / =  playback speed",
+                     "V validate · X export · H history",
                      "Esc    leave",
                  })
         {
@@ -1117,6 +1217,9 @@ public sealed class EditorScreen : Screen
         ui.Text(ui.Mono(Theme.Mono), "F5 TEST PLAY   ·   Ctrl+S SAVE",
             new Rectangle(area.X, area.Y, area.Width - 24, area.Height), Theme.Accent, TextAlign.Right);
     }
+
+    private static string Truncate(string value, int max) =>
+        value.Length <= max ? value : value[..Math.Max(1, max - 1)] + "…";
 
     private static string Time(double ms)
     {

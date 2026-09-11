@@ -7,17 +7,17 @@ and a built-in chart editor. Play · compete · create — in one `LUMEN.exe`.
 
 ## Status
 
-**Phase 6 — Chart editor: complete.** Load a track, set the tempo, place taps and holds on
-a beat grid that follows tempo changes (1/1 to 1/32, triplets included), drag to
-multi-select, copy a phrase and paste it at the playhead, and undo any of it — every
-mutation goes through a command that returns its own inverse, so undo is total rather
-than best-effort. A waveform strip seeks on click, playback slows to a quarter speed for
-tricky passages, and Test Play hands the chart to the real game and comes back to exactly
-where you were. Saving drops the chart straight into your library. 334 unit tests green.
+**Phase 7 — Chart system: complete.** Charts and packages are a real format now. A `.lumen`
+file carries the song, its audio and every difficulty with a checksum on each entry —
+export one, drop it on someone else's window, and they are playing it. Charts carry a
+stable id so the editor can keep a revision history, the validator separates what would
+genuinely break for whoever receives the chart from what the author may simply have meant,
+and a chart written by any older build still opens. 395 unit tests green.
 
-Prior phases: the song library, Song Select with per-chart bests and local rankings, and
-favourites (Phase 5); Rating, PP, per-play performances and statistics, with score saving
-as one all-or-nothing SQLite transaction (Phase 4); Tap + Hold gameplay with a
+Prior phases: the chart editor with total undo, a beat grid that follows tempo changes and
+Test Play (Phase 6); the song library, Song Select with per-chart bests and local rankings,
+and favourites (Phase 5); Rating, PP, per-play performances and statistics, with score
+saving as one all-or-nothing SQLite transaction (Phase 4); Tap + Hold gameplay with a
 deterministic engine and a NAudio/WASAPI audio clock (Phase 3); player setup, profiles and
 the screen/UI toolkit (Phase 2); window, clock, logging, crash guard, SQLite migrations
 (Phase 1).

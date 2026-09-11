@@ -1,3 +1,4 @@
+using Lumen.Core;
 using Lumen.Core.Library;
 using Lumen.Core.Scores;
 using Lumen.Game.Ui;
@@ -18,7 +19,7 @@ namespace Lumen.Game.Screens;
 /// Selection survives leaving and coming back, so finishing a play returns the player to
 /// the chart they just played rather than to the top of the list.
 /// </summary>
-public sealed class SongSelectScreen : Screen
+public sealed class SongSelectScreen : Screen, IFileDropTarget
 {
     private const int RankingRows = 5;
 
@@ -44,6 +45,7 @@ public sealed class SongSelectScreen : Screen
     private Rectangle _listArea = Rectangle.Empty;
     private Rectangle[] _difficultyChips = Array.Empty<Rectangle>();
     private string? _error;
+    private string? _status;
 
     public override void OnEnter()
     {
@@ -410,6 +412,49 @@ public sealed class SongSelectScreen : Screen
         }
     }
 
+    /// <summary>
+    /// A `.lumen` dropped on the window is imported here (spec §56). Anything else is
+    /// named in the message rather than silently ignored, so a player who drops the wrong
+    /// file learns what the right one looks like.
+    /// </summary>
+    public void OnFilesDropped(IReadOnlyList<string> paths)
+    {
+        var packages = paths
+            .Where(p => string.Equals(Path.GetExtension(p).TrimStart('.'),
+                GameIdentity.PackageExtension, StringComparison.OrdinalIgnoreCase))
+            .ToArray();
+
+        if (packages.Length == 0)
+        {
+            _error = $"Drop a .{GameIdentity.PackageExtension} package to import it.";
+            return;
+        }
+
+        int imported = 0;
+        foreach (string package in packages)
+        {
+            try
+            {
+                Lumen.Data.Packages.PackageService.ImportResult result =
+                    Context.Packages.Import(package);
+
+                imported += result.Added;
+                _status = $"Imported {result.Title} — {string.Join(", ", result.Difficulties)}.";
+                _error = null;
+            }
+            catch (Exception ex)
+            {
+                Core.Diagnostics.Log.Warn($"import failed: {Path.GetFileName(package)}", ex);
+                _error = ex.Message;
+            }
+        }
+
+        if (imported > 0)
+        {
+            Reload();
+        }
+    }
+
     /// <summary>Opens the selected chart in the editor (spec §59: the library is editable).</summary>
     private void EditSelected()
     {
@@ -477,7 +522,7 @@ public sealed class SongSelectScreen : Screen
         ScreenChrome.FooterHint(ui,
             _search.Length > 0
                 ? "↑↓ song  ·  ←→ difficulty  ·  Enter play  ·  Tab sort  ·  Esc clears the search"
-                : "↑↓ song  ·  ←→ difficulty  ·  Enter play  ·  E edit  ·  F favourite  ·  Tab sort  ·  type to search  ·  Esc back");
+                : $"↑↓ song  ·  ←→ difficulty  ·  Enter play  ·  E edit  ·  F favourite  ·  Tab sort  ·  drop a .{GameIdentity.PackageExtension} to import  ·  Esc back");
     }
 
     private void DrawHeader(UiRenderer ui, Rectangle content)
@@ -619,6 +664,11 @@ public sealed class SongSelectScreen : Screen
         {
             ui.Text(ui.Body(Theme.Label), _error,
                 new Rectangle(area.X, area.Bottom - 22, area.Width, 18), Theme.Danger);
+        }
+        else if (_status is { Length: > 0 })
+        {
+            ui.Text(ui.Body(Theme.Label), _status,
+                new Rectangle(area.X, area.Bottom - 22, area.Width, 18), Theme.TextMuted);
         }
     }
 

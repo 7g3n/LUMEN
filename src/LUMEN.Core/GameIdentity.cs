@@ -29,7 +29,7 @@ public static class GameIdentity
     public const string Version = "0.1.0";
 
     /// <summary>Chart data format version. Independent of <see cref="Version"/> (spec §97).</summary>
-    public const int ChartFormatVersion = 1;
+    public const int ChartFormatVersion = 2;
 
     /// <summary>Backup / replay container format version.</summary>
     public const int BackupFormatVersion = 1;
